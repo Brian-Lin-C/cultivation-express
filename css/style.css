@@ -1,0 +1,248 @@
+/* 我在修仙界送外卖 — 墨卷风 UI */
+:root{
+  --ink:#171310;
+  --ink2:#211a14;
+  --ink3:#2b221a;
+  --paper:#ece1c9;
+  --muted:#9b8c72;
+  --line:#3d3226;
+  --red:#c0492c;
+  --red-dim:#8e3520;
+  --gold:#d3a24c;
+  --green:#8aa862;
+  --blue:#6d8fa3;
+  --radius:6px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;}
+body{
+  background:var(--ink);
+  color:var(--paper);
+  font-family:-apple-system,"PingFang SC","Microsoft YaHei","Source Han Sans SC",sans-serif;
+  font-size:15px;
+  line-height:1.6;
+}
+#app{
+  max-width:760px;
+  margin:0 auto;
+  min-height:100%;
+  display:flex;
+  flex-direction:column;
+  padding:0 10px calc(12px + env(safe-area-inset-bottom));
+}
+h1,h2,h3,.serif{
+  font-family:"Songti SC","STSong","SimSun","Noto Serif CJK SC",serif;
+  font-weight:700;
+  letter-spacing:.06em;
+}
+
+/* ---------- 顶栏 ---------- */
+#topbar{
+  padding:14px 4px 10px;
+  border-bottom:1px solid var(--line);
+}
+#brand{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;}
+#brand h1{font-size:22px;color:var(--gold);}
+.run-tag{font-size:12px;color:var(--muted);}
+#stats{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:6px;
+  margin-top:10px;
+}
+@media(min-width:560px){ #stats{grid-template-columns:repeat(6,1fr);} }
+.stat{
+  background:var(--ink2);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  padding:5px 8px;
+  display:flex;flex-direction:column;
+}
+.stat .k{font-size:11px;color:var(--muted);}
+.stat .v{font-size:15px;font-weight:600;}
+.gold{color:var(--gold);} .green{color:var(--green);} .red{color:var(--red);} .blue{color:var(--blue);}
+
+/* ---------- 配送横幅 ---------- */
+#banner{
+  margin-top:10px;
+  background:var(--ink2);
+  border:1px solid var(--gold);
+  border-radius:var(--radius);
+  padding:10px 12px;
+}
+#bannerOrder{font-size:14px;margin-bottom:8px;}
+.bar-row{display:flex;align-items:center;gap:8px;margin-top:6px;}
+.bar-label{font-size:12px;color:var(--muted);width:34px;flex:none;}
+.bar{flex:1;height:10px;background:var(--ink);border:1px solid var(--line);border-radius:5px;overflow:hidden;}
+.bar-fill{height:100%;width:0%;transition:width .2s linear;}
+.gold-bg{background:var(--gold);}
+.green-bg{background:var(--green);}
+.bar-num{font-size:12px;width:76px;text-align:right;flex:none;font-variant-numeric:tabular-nums;}
+.bar-num.late{color:var(--red);font-weight:700;}
+
+/* ---------- 页签 ---------- */
+#tabs{
+  display:flex;
+  gap:6px;
+  margin-top:10px;
+  overflow-x:auto;
+  scrollbar-width:none;
+}
+#tabs::-webkit-scrollbar{display:none;}
+.tab{
+  flex:1 0 auto;
+  min-height:44px;
+  padding:8px 14px;
+  background:var(--ink2);
+  color:var(--muted);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  font-size:15px;
+  cursor:pointer;
+}
+.tab.active{color:var(--gold);border-color:var(--gold);background:var(--ink3);}
+
+/* ---------- 主区 ---------- */
+#main{flex:1;margin-top:10px;}
+.pane{display:none;}
+.pane.active{display:block;}
+
+/* 订单卡（符箓样式） */
+.order{
+  position:relative;
+  background:var(--ink2);
+  border:1px solid var(--line);
+  border-left:4px solid var(--gold);
+  border-radius:var(--radius);
+  padding:10px 12px;
+  margin-bottom:10px;
+}
+.order.special{border-left-color:var(--red);}
+.order .o-head{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;}
+.order .o-name{font-weight:700;font-size:15px;}
+.order .o-area{font-size:12px;color:var(--muted);}
+.order .o-body{margin-top:6px;font-size:14px;color:var(--paper);}
+.order .o-meta{
+  margin-top:8px;display:flex;gap:12px;flex-wrap:wrap;
+  font-size:12px;color:var(--muted);
+}
+.order .o-meta b{color:var(--paper);font-weight:600;}
+.order .o-pay{color:var(--gold);}
+.btn{
+  display:inline-block;
+  min-height:44px;
+  padding:8px 18px;
+  border-radius:var(--radius);
+  border:1px solid var(--gold);
+  background:transparent;
+  color:var(--gold);
+  font-size:15px;
+  cursor:pointer;
+}
+.btn:active{transform:scale(.97);}
+.btn.primary{background:var(--gold);color:var(--ink);font-weight:700;}
+.btn.danger{border-color:var(--red);color:var(--red);}
+.btn.danger.primary{background:var(--red);color:var(--paper);}
+.btn:disabled{opacity:.35;cursor:not-allowed;transform:none;}
+.order .btn{margin-top:10px;width:100%;}
+.row-btns{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0;}
+.row-btns .btn{flex:1;min-width:120px;}
+
+/* 商铺 / 修炼条目 */
+.item{
+  background:var(--ink2);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  padding:10px 12px;
+  margin-bottom:10px;
+  display:flex;justify-content:space-between;gap:10px;align-items:center;
+}
+.item .i-info{flex:1;min-width:0;}
+.item .i-name{font-weight:700;}
+.item .i-name .lv{font-size:12px;color:var(--muted);font-weight:400;margin-left:6px;}
+.item .i-desc{font-size:12px;color:var(--muted);margin-top:2px;}
+.item .btn{flex:none;padding:6px 14px;min-height:40px;font-size:14px;}
+.item.owned{border-color:var(--green);}
+.item.locked{opacity:.55;}
+.sec-title{
+  font-size:16px;color:var(--gold);
+  margin:16px 0 8px;
+  padding-bottom:4px;border-bottom:1px dashed var(--line);
+}
+.sec-title:first-child{margin-top:0;}
+
+/* 图鉴 */
+.ach{
+  display:flex;gap:10px;align-items:center;
+  background:var(--ink2);border:1px solid var(--line);
+  border-radius:var(--radius);padding:8px 12px;margin-bottom:8px;
+}
+.ach .a-ico{font-size:20px;flex:none;width:28px;text-align:center;}
+.ach .a-name{font-weight:600;font-size:14px;}
+.ach .a-desc{font-size:12px;color:var(--muted);}
+.ach.done{border-color:var(--gold);}
+.ach:not(.done){opacity:.45;}
+
+/* 设置 */
+textarea{
+  width:100%;min-height:90px;
+  background:var(--ink);color:var(--paper);
+  border:1px solid var(--line);border-radius:var(--radius);
+  padding:8px;font-size:12px;font-family:ui-monospace,monospace;
+  resize:vertical;
+}
+
+/* ---------- 日志 ---------- */
+#logwrap{
+  margin-top:12px;
+  border-top:1px solid var(--line);
+  padding-top:6px;
+}
+#loghead{font-size:12px;color:var(--muted);letter-spacing:.2em;}
+#log{
+  height:132px;
+  overflow-y:auto;
+  font-size:13px;
+  padding:6px 2px;
+  display:flex;flex-direction:column;gap:2px;
+}
+#log .l-good{color:var(--green);}
+#log .l-bad{color:var(--red);}
+#log .l-gold{color:var(--gold);}
+#log .l-sys{color:var(--muted);}
+#log .l-evt{color:var(--blue);}
+
+/* ---------- 弹窗 ---------- */
+#modalMask{
+  position:fixed;inset:0;
+  background:rgba(0,0,0,.72);
+  display:flex;align-items:center;justify-content:center;
+  padding:16px;z-index:50;
+}
+#modal{
+  width:100%;max-width:480px;
+  background:var(--ink2);
+  border:1px solid var(--gold);
+  border-radius:8px;
+  padding:18px 16px;
+  max-height:82vh;overflow-y:auto;
+}
+#modalTitle{font-size:18px;color:var(--gold);margin-bottom:8px;}
+#modalText{font-size:14px;white-space:pre-line;margin-bottom:14px;}
+#modalChoices{display:flex;flex-direction:column;gap:8px;}
+#modalChoices .btn{width:100%;text-align:left;}
+
+/* ---------- Toast ---------- */
+#toast{
+  position:fixed;left:50%;bottom:24px;transform:translateX(-50%);
+  background:var(--ink3);border:1px solid var(--gold);color:var(--gold);
+  padding:8px 18px;border-radius:20px;font-size:14px;z-index:60;
+  box-shadow:0 4px 18px rgba(0,0,0,.5);
+  max-width:88vw;text-align:center;
+}
+
+.hidden{display:none !important;}
+.center{text-align:center;}
+.muted{color:var(--muted);}
+.small{font-size:12px;}
+.mt8{margin-top:8px;} .mt16{margin-top:16px;}

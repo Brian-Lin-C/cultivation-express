@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#171310">
+<title>我在修仙界送外卖</title>
+<link rel="stylesheet" href="./css/style.css">
+</head>
+<body>
+<div id="app">
+
+  <header id="topbar">
+    <div id="brand">
+      <h1>我在修仙界送外卖</h1>
+      <span id="runTag" class="run-tag"></span>
+    </div>
+    <div id="stats">
+      <div class="stat"><span class="k">灵石</span><span class="v gold" id="stStones">0</span></div>
+      <div class="stat"><span class="k">功德</span><span class="v green" id="stMerit">0</span></div>
+      <div class="stat"><span class="k">好评率</span><span class="v" id="stRate">--</span></div>
+      <div class="stat"><span class="k">境界</span><span class="v red" id="stLevel">见习骑手</span></div>
+      <div class="stat"><span class="k">坐骑</span><span class="v" id="stMount">一双腿</span></div>
+      <div class="stat"><span class="k">已送</span><span class="v" id="stTotal">0 单</span></div>
+    </div>
+  </header>
+
+  <section id="banner" class="hidden">
+    <div id="bannerOrder"></div>
+    <div class="bar-row">
+      <div class="bar-label">行程</div>
+      <div class="bar"><div class="bar-fill gold-bg" id="barProg"></div></div>
+      <div class="bar-num" id="txtTime"></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">餐品</div>
+      <div class="bar"><div class="bar-fill green-bg" id="barFood"></div></div>
+      <div class="bar-num" id="txtFood"></div>
+    </div>
+  </section>
+
+  <nav id="tabs">
+    <button class="tab active" data-tab="orders">接单</button>
+    <button class="tab" data-tab="shop">商铺</button>
+    <button class="tab" data-tab="cult">修炼</button>
+    <button class="tab" data-tab="codex">图鉴</button>
+    <button class="tab" data-tab="settings">设置</button>
+  </nav>
+
+  <main id="main">
+    <div class="pane active" id="pane-orders"></div>
+    <div class="pane" id="pane-shop"></div>
+    <div class="pane" id="pane-cult"></div>
+    <div class="pane" id="pane-codex"></div>
+    <div class="pane" id="pane-settings"></div>
+  </main>
+
+  <section id="logwrap">
+    <div id="loghead">江湖传闻</div>
+    <div id="log"></div>
+  </section>
+
+  <div id="toast" class="hidden"></div>
+
+  <div id="modalMask" class="hidden">
+    <div id="modal">
+      <div id="modalTitle"></div>
+      <div id="modalText"></div>
+      <div id="modalChoices"></div>
+    </div>
+  </div>
+
+</div>
+<script src="./js/data.js"></script>
+<script src="./js/game.js"></script>
+</body>
+</html>
