@@ -338,6 +338,16 @@ const DATA = {
     taunt: '这一世，燕十三也来了。他在榜上留了言：「好久不见，手下败将。」',
   },
 
+  /* ---------- 轮回天赋（天道印记兑换，跨世永久生效） ---------- */
+  TALENTS: [
+    { id: 'feet',   name: '脚力传承', max: 3, costs: [1, 2, 3], desc: '每级：每一世开局配送速度 +5%' },
+    { id: 'wealth', name: '黄袍世家', max: 2, costs: [1, 2],    desc: '每级：每一世开局灵石 +150' },
+    { id: 'scout',  name: '伯乐之眼', max: 1, costs: [2],       desc: '每一世开局自带 1 名骑手小弟' },
+    { id: 'shield', name: '天道庇护', max: 2, costs: [2, 3],    desc: '每级：每一世可免疫 1 次天谴' },
+    { id: 'eye',    name: '慧眼识单', max: 2, costs: [1, 2],    desc: '每级：可选订单 +1 张' },
+    { id: 'bond',   name: '前世旧识', max: 1, costs: [3],       desc: '轮回后熟客好感全部保留' },
+  ],
+
   /* ---------- 成就 ---------- */
   ACHIEVEMENTS: [
     { id: 'first',     ico: '🍱', name: '初入江湖',   desc: '送出第一单' },
@@ -356,6 +366,7 @@ const DATA = {
     { id: 'hire1',     ico: '🐣', name: '招兵买马',   desc: '雇佣第一名骑手小弟' },
     { id: 'butterfly5', ico: '🦋', name: '捕蝶达人',  desc: '点中 5 次灵蝶' },
     { id: 'top1',      ico: '🥇', name: '黄袍第一人', desc: '在骑手榜上超越燕十三登顶' },
+    { id: 'regular3',  ico: '❤️', name: '人情练达',   desc: '拥有 3 位熟客' },
   ],
 
   /* ---------- 结局 ---------- */

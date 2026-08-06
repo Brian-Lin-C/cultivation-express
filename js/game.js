@@ -1,7 +1,7 @@
 /* =========================================================
  * 我在修仙界送外卖 — 引擎
  * 纯前端 · localStorage 存档（键名前缀 cultexpress_）
- * v1.1：雇佣骑手自动化 + 离线收益 + 灵蝶机缘 + 成就加成 + 宿敌榜
+ * v1.2：轮回天赋树（天道印记）+ 熟客系统 + 渡劫仪式
  * ========================================================= */
 (function () {
   'use strict';
@@ -34,6 +34,7 @@
   }
 
   var S = freshState();
+  var META = { marks: 0, talents: {} }; // 跨轮回永久数据（天道印记 + 天赋）
   var orders = [];          // 当前可接订单
   var delivery = null;      // 进行中的配送
   var modalOpen = false;
@@ -42,11 +43,12 @@
   var riderAcc = 0;         // 骑手自动配送进度
   var butterflyAt = Infinity; // 下一只灵蝶出现时间
   var rivalLineAt = Infinity; // 下一条宿敌传闻时间
+  var pendingWrath = false;   // 渡劫后再结算的天谴
 
   /* ---------------- 存档 ---------------- */
   function save() {
     try {
-      localStorage.setItem(KEY, JSON.stringify({ v: 1, s: S, orders: orders, lastSeen: Date.now() }));
+      localStorage.setItem(KEY, JSON.stringify({ v: 1, s: S, meta: META, orders: orders, lastSeen: Date.now() }));
     } catch (e) { /* 隐私模式下静默失败 */ }
   }
   function load() {
@@ -60,6 +62,8 @@
       S.arts = Object.assign({ shenfa: 0, hutu: 0, shenshi: 0, guixi: 0, dianjin: 0 }, data.s.arts);
       S.buffs = Object.assign({ speedUntil: 0, safeNext: 0 }, data.s.buffs);
       S.flags = data.s.flags || {};
+      META = Object.assign({ marks: 0, talents: {} }, data.meta);
+      META.talents = META.talents || {};
       orders = Array.isArray(data.orders) ? data.orders : [];
       lastSeenSave = data.lastSeen || 0;
       return true;
@@ -67,6 +71,7 @@
   }
 
   /* ---------------- 派生数值 ---------------- */
+  function tLv(id) { return META.talents[id] || 0; }
   function level() {
     var lv = 1;
     for (var i = 0; i < DATA.LEVELS.length; i++) {
@@ -76,7 +81,7 @@
   }
   function levelTitle() { return DATA.LEVELS[level() - 1].title; }
   function speed() {
-    var v = DATA.MOUNTS[S.mount].spd * (1 + 0.12 * S.arts.shenfa) * (1 + S.legacySpeed);
+    var v = DATA.MOUNTS[S.mount].spd * (1 + 0.12 * S.arts.shenfa) * (1 + S.legacySpeed) * (1 + 0.05 * tLv('feet'));
     if (Date.now() < S.buffs.speedUntil) v *= 2;
     return v;
   }
@@ -91,6 +96,13 @@
     return DATA.AREAS.map(function (a, i) { return i; }).filter(function (i) {
       return DATA.AREAS[i].lv <= lv;
     });
+  }
+  function orderSlots() { return 3 + tLv('eye'); }
+  function regulars() { return S.flags.regulars || {}; }
+  function regularCount() {
+    var n = 0, rg = regulars();
+    Object.keys(rg).forEach(function (k) { if (rg[k].good >= 3) n++; });
+    return n;
   }
 
   /* ---------------- 骑手自动化 ---------------- */
@@ -160,6 +172,7 @@
     if ((S.flags.demonServed || 0) >= 1) unlockAch('demon1');
     if (S.riders >= 1) unlockAch('hire1');
     if ((S.flags.butterflies || 0) >= 5) unlockAch('butterfly5');
+    if (regularCount() >= 3) unlockAch('regular3');
   }
 
   /* ---------------- 订单生成 ---------------- */
@@ -200,6 +213,11 @@
     var pay = rnd(area.payMin, area.payMax) * (sp ? sp.payMul : 1);
     var limit = Math.ceil((10 + area.dist * 10) * (1.15 + Math.random() * 0.4) * (sp ? sp.timeMul : 1));
 
+    // 熟客加成
+    var rg = regulars()[customer];
+    var isRegular = !!(rg && rg.good >= 3);
+    if (isRegular) pay *= 1.3;
+
     return {
       id: Date.now() + '_' + Math.random().toString(36).slice(2, 7),
       customer: customer,
@@ -208,12 +226,13 @@
       pay: Math.round(pay),
       limit: limit,
       special: sp ? sp.id : null,
-      note: sp ? sp.note : null,
+      regular: isRegular,
+      note: sp ? sp.note : (isRegular ? '❤️ 熟客单：报酬 +30%，送达必有小费。' : null),
     };
   }
 
   function refillOrders() {
-    while (orders.length < 3) orders.push(genOrder());
+    while (orders.length < orderSlots()) orders.push(genOrder());
     save();
   }
 
@@ -341,7 +360,7 @@
     pay = Math.max(1, Math.round(pay));
     var tip = 0;
     var tipChance = 0.15 + 0.12 * S.arts.dianjin;
-    if (good && Math.random() < tipChance) tip = Math.round(o.pay * (0.2 + Math.random() * 0.4));
+    if (good && (o.regular || Math.random() < tipChance)) tip = Math.round(o.pay * (0.2 + Math.random() * 0.4));
 
     var meritGain = 0;
     if (good) meritGain = 3 + o.area + (o.special === 'bigshot' ? 10 : 0) + (o.special === 'demon' ? 8 : 0);
@@ -370,6 +389,18 @@
       log('😐 送达，' + starStr + ' 对方没给评价。+' + pay + ' 灵石。', 'l-sys');
     }
 
+    // 熟客好感累积
+    var rgMap = S.flags.regulars || {};
+    var wasRegular = !!(rgMap[o.customer] && rgMap[o.customer].good >= 3);
+    var rg = rgMap[o.customer] || { n: 0, good: 0 };
+    rg.n++;
+    if (good) rg.good++;
+    rgMap[o.customer] = rg;
+    S.flags.regulars = rgMap;
+    if (!wasRegular && rg.good >= 3) {
+      log('❤️ ' + o.customer + '把你当成了熟客！以后他的单报酬 +30%，小费管够。', 'l-gold');
+    }
+
     // 区域首送成就
     if (o.area >= 3) unlockAch('area4');
     if (o.area >= 4) unlockAch('area5');
@@ -387,8 +418,62 @@
     save();
     render();
 
-    // 天谴判定（结算渲染之后弹）
-    if (S.badStreak >= 3) {
+    // 渡劫（Lv.3 起）→ 天谴 → 魔尊结局链，按时序排队
+    if (lvNow > lvBefore && lvNow >= 3) {
+      pendingWrath = S.badStreak >= 3;
+      setTimeout(function () { showTribulation(lvNow); }, 350);
+    } else if (S.badStreak >= 3) {
+      setTimeout(showWrath, 350);
+    } else {
+      checkDemonEnding();
+    }
+  }
+
+  /* ---------------- 渡劫仪式 ---------------- */
+  function showTribulation(lv) {
+    var choices = [
+      { t: '💪 硬抗天雷（赌！成则功德 +15、灵石 +80）', run: function () {
+        var p = 0.55 + S.arts.shenfa * 0.1;
+        if (Math.random() < p) {
+          S.merit += 15; S.stones += 80;
+          log('⚡ 你硬抗三道天雷毫发无损，天道叹服：功德 +15，灵石 +80！', 'l-gold');
+        } else {
+          var loss = Math.min(S.stones, 60);
+          S.stones -= loss;
+          log('⚡ 天雷把你劈成了爆炸头，灵石 -' + loss + '。好在境界还是突破了。', 'l-bad');
+        }
+        afterTribulation();
+      } },
+      { t: '💰 孝敬雷神（-60 灵石，功德 +10 + 神速 60s）', run: function () {
+        var cost = Math.min(S.stones, 60);
+        S.stones -= cost;
+        S.merit += 10;
+        S.buffs.speedUntil = Date.now() + 60000;
+        log('⚡ 雷神掂了掂你的灵石，点了点头：功德 +10，赐你 60 秒神速。', 'l-gold');
+        afterTribulation();
+      } },
+      { t: '🙏 顺其自然（无奖无惩）', run: function () {
+        log('⚡ 你盘坐受劫，雷过天晴，心如止水。', 'l-sys');
+        afterTribulation();
+      } },
+    ];
+    if (S.arts.hutu >= 1) {
+      choices.splice(1, 0, { t: '🛡️ 金钟护体（金钟罩渡劫，稳妥功德 +8）', run: function () {
+        S.merit += 8;
+        log('⚡ 金钟罩嗡鸣一声，天雷绕道而走。功德 +8。', 'l-good');
+        afterTribulation();
+      } });
+    }
+    openModal('⚡ 渡劫 · 突破「' + DATA.LEVELS[lv - 1].title + '」',
+      '你的修为引来了劫云。渡得好，天道有奖；渡不好……也就是劈一下的事。\n\n选择你的渡劫方式：',
+      choices);
+  }
+  function afterTribulation() {
+    closeModal();
+    save();
+    render();
+    if (pendingWrath) {
+      pendingWrath = false;
       setTimeout(showWrath, 350);
     } else {
       checkDemonEnding();
@@ -396,6 +481,17 @@
   }
 
   function showWrath() {
+    // 天赋「天道庇护」：每世可免疫天谴
+    if ((S.flags.wrathShield || 0) > 0) {
+      S.flags.wrathShield--;
+      S.badStreak = 0;
+      log('🛡️ 天道庇护发动：劫云凝聚了一半，又悻悻散去。本次天谴免疫！', 'l-gold');
+      toast('天道庇护 · 天谴免疫');
+      checkDemonEnding();
+      save();
+      render();
+      return;
+    }
     var loss = Math.ceil(S.stones * 0.25);
     S.stones -= loss;
     S.merit = Math.max(0, S.merit - 10);
@@ -430,23 +526,40 @@
     if (id === 'home') S.stones -= 6666;
     if (id === 'tycoon') S.stones -= 9999;
     S.endings.push(id);
+    S.flags.lifeEndings = (S.flags.lifeEndings || 0) + 1;
     unlockAch('ending');
     log('📜 达成结局：' + e.name, 'l-gold');
     openModal('📜 ' + e.name, e.text + '\n\n—— 第 ' + S.run + ' 世 · 完 ——', [
-      { t: '♻️ 进入轮回（保留成就，下一世速度 +5%）', run: reincarnate },
+      { t: '♻️ 进入轮回（结算天道印记，下一世速度 +5%）', run: reincarnate },
       { t: '继续这一世（自由模式）', run: function () { closeModal(); save(); render(); } },
     ]);
     save();
     render();
   }
   function reincarnate() {
+    // 天道印记结算：保底 1 + 该世新结局数 + 每 100 单 1 枚
+    var earned = 1 + (S.flags.lifeEndings || 0) + Math.floor(S.total / 100);
+    META.marks += earned;
+
     var legacy = Math.min(0.5, S.legacySpeed + 0.05);
+    var keepRegulars = tLv('bond') >= 1 ? (S.flags.regulars || {}) : null;
+
     S = freshState(S.run + 1, legacy, S.achievements, S.endings);
+    // 轮回天赋生效
+    S.stones += 150 * tLv('wealth');
+    if (tLv('scout') >= 1) S.riders = 1;
+    S.flags.wrathShield = tLv('shield');
+    if (keepRegulars) S.flags.regulars = keepRegulars;
+
     delivery = null;
     orders = [];
     riderAcc = 0;
+    pendingWrath = false;
     refillOrders();
     log('♻️ 第 ' + S.run + ' 世开始了。你带着一丝前世记忆——跑得比上一世快了一点。', 'l-gold');
+    log('🌀 天道结算：获得 ' + earned + ' 枚天道印记（现有 ' + META.marks + ' 枚，可在「修炼」页兑换轮回天赋）。', 'l-gold');
+    if (tLv('scout') >= 1) log('🐣 伯乐之眼生效：这一世开局便有一名骑手小弟追随你。', 'l-good');
+    if (keepRegulars && Object.keys(keepRegulars).length) log('❤️ 前世旧识生效：老熟客们还记得你。', 'l-good');
     log(DATA.RIVAL.taunt, 'l-evt');
     closeModal();
     save();
@@ -493,6 +606,17 @@
     S.stones -= dsp.cost;
     S.dispatch = i + 1;
     log('🗺️ 购得「' + dsp.name + '」！小弟们现在能送「' + DATA.AREAS[dsp.area].name + '」的单了。', 'l-gold');
+    save(); render();
+  }
+  function buyTalent(id) {
+    var def = DATA.TALENTS.find(function (x) { return x.id === id; });
+    var cur = tLv(id);
+    if (!def || cur >= def.max || META.marks < def.costs[cur]) return;
+    META.marks -= def.costs[cur];
+    META.talents[id] = cur + 1;
+    log('🌀 轮回天赋「' + def.name + '」升至 ' + (cur + 1) + ' 级，自下一世起生效。', 'l-gold');
+    // 部分天赋即时可见效果
+    if (id === 'eye') refillOrders();
     save(); render();
   }
 
@@ -635,6 +759,7 @@
     var parts = [];
     if (Date.now() < S.buffs.speedUntil) parts.push('⚡神速中（速度×2，剩 ' + Math.ceil((S.buffs.speedUntil - Date.now()) / 1000) + 's）');
     if (S.buffs.safeNext > 0) parts.push('🛡️平安符（下一单零损耗）');
+    if ((S.flags.wrathShield || 0) > 0) parts.push('🌀天道庇护 ×' + S.flags.wrathShield);
     return parts.length ? '<div class="small buff-line center">' + parts.join(' · ') + '</div>' : '';
   }
 
@@ -654,7 +779,7 @@
       var est = Math.ceil(baseTime(o) / speed());
       var risky = est > o.limit;
       html += '<div class="order' + (o.special ? ' special' : '') + '">' +
-        '<div class="o-head"><span class="o-name">' + esc(o.customer) + '</span>' +
+        '<div class="o-head"><span class="o-name">' + (o.regular ? '❤️ ' : '') + esc(o.customer) + '</span>' +
         '<span class="o-area">📍 ' + DATA.AREAS[o.area].name + '</span></div>' +
         '<div class="o-body">🍜 ' + esc(o.food) + (o.note ? '<br><span class="muted small">' + esc(o.note) + '</span>' : '') + '</div>' +
         '<div class="o-meta"><span>报酬 <b class="o-pay">' + o.pay + ' 灵石</b></span>' +
@@ -768,6 +893,19 @@
         '</div>';
     });
 
+    html += '<div class="sec-title">轮回天赋（天道印记 ×' + META.marks + '）' +
+      '<span class="muted small"> · 轮回时结算，跨世永久生效</span></div>';
+    DATA.TALENTS.forEach(function (tl) {
+      var cur = tLv(tl.id);
+      var maxed = cur >= tl.max;
+      html += '<div class="item' + (cur > 0 ? ' owned' : '') + '">' +
+        '<div class="i-info"><div class="i-name">' + tl.name + '<span class="lv">' + cur + '/' + tl.max + ' 级</span></div>' +
+        '<div class="i-desc">' + tl.desc + '</div></div>' +
+        (maxed ? '<button class="btn" disabled>已圆满</button>'
+          : '<button class="btn" data-talent="' + tl.id + '">' + tl.costs[cur] + ' 印记</button>') +
+        '</div>';
+    });
+
     html += '<div class="sec-title">飞升</div>';
     var ascOk = endingAvailable('ascend');
     html += '<div class="item">' +
@@ -796,6 +934,22 @@
       '🥈 ' + (ps > rs ? '你' : '蓝袍宗·燕十三') + '：' + Math.min(ps, rs) + ' 分<br>' +
       (ps > rs ? '你压他一头，继续保持。' : '他压你一头。手动送单、雇佣小弟、攒功德都能涨分。') +
       '<br>（得分 = 手动单×2 + 自动单×1 + 五星×3 + 功德÷10，每世重新计）</div>';
+
+    // 熟客
+    var rg = regulars();
+    var rgKeys = Object.keys(rg);
+    html += '<div class="sec-title">熟客（' + regularCount() + ' 位）</div>';
+    if (!rgKeys.length) {
+      html += '<div class="muted small">给同一位客人送出 3 次好评，他就会成为你的熟客。熟客单报酬 +30%，必给小费。</div>';
+    }
+    rgKeys.forEach(function (k) {
+      var r = rg[k];
+      var isR = r.good >= 3;
+      html += '<div class="ach' + (isR ? ' done' : '') + '"><div class="a-ico">' + (isR ? '❤️' : '🙂') + '</div>' +
+        '<div><div class="a-name">' + esc(k) + '</div>' +
+        '<div class="a-desc">' + (isR ? '熟客 · 好评 ' + r.good + ' 次' : '好感 ' + r.good + '/3 · 累计 ' + r.n + ' 单') + '</div></div></div>';
+    });
+
     html += '<div class="sec-title">结局（' + S.endings.length + '/' + DATA.ENDINGS.length + '）</div>';
     DATA.ENDINGS.forEach(function (e) {
       var done = S.endings.indexOf(e.id) >= 0;
@@ -805,7 +959,8 @@
     });
     html += '<div class="sec-title">生涯</div>' +
       '<div class="muted small">第 ' + S.run + ' 世 · 手动 ' + S.total + ' 单 · 小弟代送 ' + (S.flags.autoOrders || 0) +
-      ' 单 · 好评 ' + S.good + ' · 差评 ' + S.bad + ' · 五星 ' + S.fiveStar + ' 次 · 捕蝶 ' + (S.flags.butterflies || 0) + ' 次</div>';
+      ' 单 · 好评 ' + S.good + ' · 差评 ' + S.bad + ' · 五星 ' + S.fiveStar + ' 次 · 捕蝶 ' + (S.flags.butterflies || 0) +
+      ' 次 · 天道印记 ' + META.marks + ' 枚</div>';
     pane.innerHTML = html;
   }
 
@@ -820,8 +975,8 @@
       '<div class="sec-title">危险区</div>' +
       '<div class="row-btns"><button class="btn danger" id="btnReset">🗑️ 删除存档重新开始</button></div>' +
       '<div class="sec-title">关于</div>' +
-      '<div class="muted small">《我在修仙界送外卖》v1.1 · 纯文字单机小游戏 · 无外链资源 · 无声音<br>' +
-      '题材：修仙 × 外卖 · 玩法：接单配送 + 随机事件 + 经营养成 + 雇佣自动化 + 多结局轮回</div>';
+      '<div class="muted small">《我在修仙界送外卖》v1.2 · 纯文字单机小游戏 · 无外链资源 · 无声音<br>' +
+      '题材：修仙 × 外卖 · 玩法：接单配送 + 随机事件 + 经营养成 + 雇佣自动化 + 轮回天赋 + 多结局</div>';
   }
 
   function render() {
@@ -910,7 +1065,7 @@
 
   /* ---------------- 事件绑定 ---------------- */
   document.addEventListener('click', function (ev) {
-    var t = ev.target.closest('[data-accept],[data-mount],[data-box],[data-art],[data-ending],[data-rider],[data-dispatch],#btnReroll,#btnMeditate,#btnExport,#btnImport,#btnReset,.tab');
+    var t = ev.target.closest('[data-accept],[data-mount],[data-box],[data-art],[data-ending],[data-rider],[data-dispatch],[data-talent],#btnReroll,#btnMeditate,#btnExport,#btnImport,#btnReset,.tab');
     if (!t) return;
 
     if (t.classList.contains('tab')) {
@@ -927,6 +1082,7 @@
     if (t.dataset.ending) { doEnding(t.dataset.ending); return; }
     if (t.dataset.rider) { buyRider(); return; }
     if (t.dataset.dispatch) { buyDispatch(parseInt(t.dataset.dispatch, 10)); return; }
+    if (t.dataset.talent) { buyTalent(t.dataset.talent); return; }
 
     switch (t.id) {
       case 'btnReroll':
@@ -945,7 +1101,7 @@
         break;
       case 'btnExport':
         try {
-          $('#saveBox').value = btoa(unescape(encodeURIComponent(JSON.stringify({ s: S, orders: orders }))));
+          $('#saveBox').value = btoa(unescape(encodeURIComponent(JSON.stringify({ s: S, meta: META, orders: orders }))));
           toast('存档码已生成，可复制保存');
         } catch (e) { toast('导出失败'); }
         break;
@@ -960,9 +1116,12 @@
           S.arts = Object.assign({ shenfa: 0, hutu: 0, shenshi: 0, guixi: 0, dianjin: 0 }, data.s.arts);
           S.buffs = Object.assign({ speedUntil: 0, safeNext: 0 }, data.s.buffs);
           S.flags = data.s.flags || {};
+          META = Object.assign({ marks: 0, talents: {} }, data.meta);
+          META.talents = META.talents || {};
           orders = Array.isArray(data.orders) ? data.orders : [];
           delivery = null;
           riderAcc = 0;
+          pendingWrath = false;
           refillOrders();
           save();
           log('📥 存档导入成功。', 'l-gold');
@@ -971,13 +1130,15 @@
         break;
       }
       case 'btnReset':
-        openModal('🗑️ 确认删档？', '此操作会清空当前进度（成就与结局记录一并删除），不可恢复。', [
+        openModal('🗑️ 确认删档？', '此操作会清空当前进度（成就、结局、天道印记一并删除），不可恢复。', [
           { t: '确认删除，重新做人', run: function () {
             try { localStorage.removeItem(KEY); } catch (e) {}
             S = freshState();
+            META = { marks: 0, talents: {} };
             orders = [];
             delivery = null;
             riderAcc = 0;
+            pendingWrath = false;
             refillOrders();
             closeModal();
             log('🌱 新的一世开始了。', 'l-sys');
