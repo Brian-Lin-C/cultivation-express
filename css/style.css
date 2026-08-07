@@ -46,11 +46,11 @@ h1,h2,h3,.serif{
 .run-tag{font-size:12px;color:var(--muted);}
 #stats{
   display:grid;
-  grid-template-columns:repeat(3,1fr);
+  grid-template-columns:repeat(4,1fr);
   gap:6px;
   margin-top:10px;
 }
-@media(min-width:560px){ #stats{grid-template-columns:repeat(6,1fr);} }
+@media(min-width:560px){ #stats{grid-template-columns:repeat(8,1fr);} }
 .stat{
   background:var(--ink2);
   border:1px solid var(--line);
@@ -264,3 +264,29 @@ textarea{
   to{transform:translateY(-10px) rotate(8deg);}
 }
 .buff-line{color:var(--blue);}
+
+/* ---------- v2.0：数值闪烁 / 选项提示 / 输入框 / 试炼单 ---------- */
+@keyframes flashAnim{
+  0%{background:#4a3a1c;border-color:var(--gold);}
+  100%{background:var(--ink2);}
+}
+.stat.flash{animation:flashAnim .7s ease-out;}
+#modalChoices .btn .hint{
+  display:block;
+  font-size:11px;
+  color:var(--muted);
+  margin-top:2px;
+  font-weight:400;
+}
+.text-input{
+  width:100%;
+  min-height:44px;
+  background:var(--ink);
+  color:var(--paper);
+  border:1px solid var(--gold);
+  border-radius:var(--radius);
+  padding:8px 12px;
+  font-size:15px;
+  margin-top:8px;
+}
+.order.trial{border-left-color:var(--blue);}
