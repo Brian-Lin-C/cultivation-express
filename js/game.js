@@ -10,6 +10,7 @@
  * v2.3：情报型事件（灵眸揭示）+ 人格影响事件池 + 失败剧情 + NPC 人脉基础版
  * v2.4：流派被动神通（9 大流派落地）+ 流派播报 + 路线偏好画像
  * v2.4.1：新手引导五步任务链 + 开局欢迎剧情 + 玩法说明 + 情境提示
+ * v2.4.2：三档难度（清闲/标准/修罗）+ 高境界餐损加压 + 修罗道成就
  * ========================================================= */
 (function () {
   'use strict';
@@ -180,6 +181,19 @@
     var b = computeBuild();
     return !!(b && b.name === name);
   }
+  /* ---------------- 难度（v2.4.2） ---------------- */
+  function difficulty() {
+    var id = S.flags.difficulty || 'easy';
+    return DATA.DIFFICULTIES.find(function (d) { return d.id === id; }) || DATA.DIFFICULTIES[0];
+  }
+  function setDifficulty(id) {
+    var d = DATA.DIFFICULTIES.find(function (x) { return x.id === id; });
+    if (!d || (S.flags.difficulty || 'easy') === id) return;
+    S.flags.difficulty = id;
+    log(d.ico + ' 难度切换为「' + d.name + '」：' + d.desc, 'l-gold');
+    toast(d.ico + ' 难度 · ' + d.name);
+    save(); render();
+  }
 
   /* ---------------- 行为标签 / 流派（v2.2 预埋接口） ---------------- */
   function bumpPersonality(key, n) {
@@ -237,9 +251,20 @@
       '<div class="o-body small">' + g.desc + '<br><span class="muted">💡 ' + g.hint + '</span></div></div>';
   }
   function showWelcome() {
+    var choices = DATA.DIFFICULTIES.map(function (d) {
+      return {
+        t: d.ico + ' ' + d.name,
+        hint: d.desc,
+        run: function () {
+          S.flags.difficulty = d.id;
+          log(d.ico + ' 你踏上了「' + d.name + '」之道：' + d.desc + '（设置页可随时更换）', 'l-gold');
+          closeModal(); save(); render();
+        },
+      };
+    });
     openModal('🌩️ 黄袍加身',
-      '一道天雷把你劈进了修仙界。回家的日子遥遥无期，饭总得吃——\n好在你还有一门手艺：送外卖。\n\n核心循环一句话：接单 → 择路 → 应对途中变故 → 拿好评 → 赚灵石与功德 → 买坐骑、修功法 → 送更远更危险的单。\n\n跟着顶部「新手引导」五步走，每步都有奖励；玩不明白时，随时可在「设置 → 玩法说明」重温。',
-      [{ t: '开工送单！', run: function () { closeModal(); save(); render(); } }]);
+      '一道天雷把你劈进了修仙界。回家的日子遥遥无期，饭总得吃——\n好在你还有一门手艺：送外卖。\n\n核心循环一句话：接单 → 择路 → 应对途中变故 → 拿好评 → 赚灵石与功德 → 买坐骑、修功法 → 送更远更危险的单。\n\n跟着顶部「新手引导」五步走，每步都有奖励。\n\n上路之前，选择你的修行之道（之后可随时更换）：',
+      choices);
   }
   function showHelp() {
     openModal('📖 玩法说明',
@@ -250,6 +275,7 @@
       '【神通】配送中可放技能：御风诀冲刺、镇食诀保餐、遁影诀暗中观察。耗灵力（自动回复）、有冷却。\n' +
       '【养成】灵石买坐骑/外卖箱/骑手小弟（自动送单、离线也跑）；功德修功法，两门 2 层悟出流派神通。\n' +
       '【资源】气运影响随机事件好坏；道心是灵眸的燃料；好评/打坐回复道心，差评扣减。三连差评遭天谴⚡。\n' +
+      '【难度】清闲/标准/修罗三档（设置页随时切换）：难度越高，时限越紧、餐损越快、变故越多、天谴越狠，但报酬也越高。\n' +
       '【其他】门派悬赏每天换着花样发奖；熟客报酬 +30%；骑手榜上压着燕十三就是榜一。',
       [{ t: '明白了', run: function () { closeModal(); render(); } }]);
   }
@@ -453,7 +479,7 @@
     }
 
     var pay = rnd(area.payMin, area.payMax) * (sp ? sp.payMul : 1);
-    var limit = Math.ceil((10 + area.dist * 10) * (1.15 + Math.random() * 0.4) * (sp ? sp.timeMul : 1));
+    var limit = Math.ceil((10 + area.dist * 10) * (1.15 + Math.random() * 0.4) * difficulty().limitMul * (sp ? sp.timeMul : 1));
 
     var rg = regulars()[customer];
     var isRegular = !!(rg && rg.good >= 3);
@@ -538,7 +564,7 @@
 
     var expect = baseTime(order) * st.time / speed();
     var baseEvt = order.area <= 1 ? rnd(0, 1) : order.area <= 2 ? rnd(1, 2) : rnd(1, 3);
-    var nEvt = clamp(Math.round(baseEvt * st.event), 0, 4);
+    var nEvt = clamp(Math.round(baseEvt * st.event * difficulty().eventMul), 0, 4);
     var fracs = [];
     for (var i = 0; i < nEvt; i++) fracs.push(0.18 + Math.random() * 0.64);
     fracs.sort(function (a, b) { return a - b; });
@@ -778,7 +804,7 @@
     var heat = S.flags.heat || 0;
     var heatCap = hasBuild('赏金急脚流') ? 0.35 : 0.25; // 流派加成：连击封顶 25%→35%
     var heatMul = 1 + Math.min(heat * 0.05, heatCap); // 五星连击：每连 +5% 报酬
-    var pay = o.pay * (0.4 + ig / 160) * (stars >= 4 ? 1.2 : stars === 3 ? 0.9 : 0.6) * payMul() * heatMul;
+    var pay = o.pay * (0.4 + ig / 160) * (stars >= 4 ? 1.2 : stars === 3 ? 0.9 : 0.6) * payMul() * heatMul * difficulty().payMul;
     pay = Math.max(1, Math.round(pay));
     var tip = 0;
     var tipChance = 0.15 + 0.12 * S.arts.dianjin + (hasBuild('因果商人流') ? 0.15 : 0);
@@ -918,6 +944,12 @@
 
     guideAdvance('deliver');
 
+    // 修罗道成就（v2.4.2）
+    if (difficulty().id === 'hard') {
+      S.flags.hardOrders = (S.flags.hardOrders || 0) + 1;
+      if (S.flags.hardOrders >= 30) unlockAch('hard30');
+    }
+
     // 境界提升提示
     var lvBefore = S.flags.lastLevel || 1;
     var lvNow = level();
@@ -1042,13 +1074,14 @@
       render();
       return;
     }
-    var loss = Math.ceil(S.stones * 0.25);
+    var dwr = difficulty();
+    var loss = Math.ceil(S.stones * dwr.wrathLoss);
     S.stones -= loss;
-    S.merit = Math.max(0, S.merit - 10);
+    S.merit = Math.max(0, S.merit - dwr.wrathMerit);
     S.luck = clamp(S.luck - 5, 0, 100);
     S.badStreak = 0;
     unlockAch('wrath');
-    log('⚡ 天谴降临！灵石 -' + loss + '，功德 -10，气运 -5。', 'l-bad');
+    log('⚡ 天谴降临！灵石 -' + loss + '，功德 -' + dwr.wrathMerit + '，气运 -5。', 'l-bad');
     openModal('⚡ ' + DATA.WRATH.title, DATA.WRATH.text, [
       { t: '默默扶起餐箱，继续送单', run: function () { closeModal(); checkDemonEnding(); save(); render(); } },
     ]);
@@ -1472,7 +1505,8 @@
       '<button class="btn" id="btnReroll">🔄 换一批（-' + rerollCost + ' 灵石）</button>' +
       '<button class="btn' + (S.meditating ? ' primary' : '') + '" id="btnMeditate">🧘 ' + (S.meditating ? '打坐中…' : '打坐（功德+道心）') + '</button></div>';
     var ps = playerScore(), rs = rivalScore();
-    html += '<div class="muted small center mt8">好评率 ' + (rate === null ? '--' : rate + '%') +
+    html += '<div class="muted small center mt8">难度 ' + difficulty().ico + difficulty().name +
+      ' · 好评率 ' + (rate === null ? '--' : rate + '%') +
       ' · 连续好评 ' + S.goodStreak + ' · 连续差评 ' + S.badStreak + '（三连差评会遭天谴⚡）</div>' +
       ((S.flags.heat || 0) >= 2 ? '<div class="small center" style="color:var(--gold)">🔥 五星连击 ×' + S.flags.heat + ' · 报酬 +' + Math.min(S.flags.heat * 5, hasBuild('赏金急脚流') ? 35 : 25) + '%</div>' : '') +
       '<div class="muted small center">🏆 骑手榜：' + esc(displayName()) + ' ' + ps + ' 分' +
@@ -1726,10 +1760,15 @@
       '<textarea id="saveBox" placeholder="存档码会出现在这里；粘贴存档码后点「导入存档」"></textarea>' +
       '<div class="sec-title">玩法</div>' +
       '<div class="row-btns"><button class="btn" id="btnHelp">📖 玩法说明</button></div>' +
+      '<div class="sec-title">难度</div>' +
+      '<div class="muted small">当前：' + difficulty().ico + ' ' + difficulty().name + '——' + difficulty().desc + '</div>' +
+      '<div class="row-btns">' + DATA.DIFFICULTIES.map(function (d) {
+        return '<button class="btn' + (difficulty().id === d.id ? ' primary' : '') + '" data-diff="' + d.id + '">' + d.ico + ' ' + d.name + '</button>';
+      }).join('') + '</div>' +
       '<div class="sec-title">危险区</div>' +
       '<div class="row-btns"><button class="btn danger" id="btnReset">🗑️ 删除存档重新开始</button></div>' +
       '<div class="sec-title">关于</div>' +
-      '<div class="muted small">《我在修仙界送外卖》v2.4.1 · 纯文字单机小游戏 · 无外链资源 · 无声音<br>' +
+      '<div class="muted small">《我在修仙界送外卖》v2.4.2 · 纯文字单机小游戏 · 无外链资源 · 无声音<br>' +
       '题材：修仙 × 外卖 · 玩法：择路配送 + 神通操作 + 情报事件 + 人脉经营 + 因果链 + 轮回天赋 + 多结局</div>';
   }
 
@@ -1770,7 +1809,7 @@
       if (!modalOpen) {
         var d = delivery;
         if (!d.safeMode) {
-          d.integrity = clamp(d.integrity - 0.22 * dt * (1 - 0.25 * S.box.warm) * (d.pill ? 0.5 : 1), 0, 100);
+          d.integrity = clamp(d.integrity - 0.22 * dt * difficulty().decayMul * (1 + 0.03 * Math.max(0, level() - 4)) * (1 - 0.25 * S.box.warm) * (d.pill ? 0.5 : 1), 0, 100);
         }
         // 御风诀生效中：进度按 ×1.8 推进
         if (now < d.yufengUntil) d.start -= dt * 0.8 * 1000;
@@ -1855,7 +1894,7 @@
 
   /* ---------------- 事件绑定 ---------------- */
   document.addEventListener('click', function (ev) {
-    var t = ev.target.closest('[data-accept],[data-skill],[data-mount],[data-box],[data-art],[data-ending],[data-rider],[data-dispatch],[data-talent],#btnReroll,#btnMeditate,#btnExport,#btnImport,#btnReset,#btnRename,#btnHelp,.tab');
+    var t = ev.target.closest('[data-accept],[data-skill],[data-mount],[data-box],[data-art],[data-ending],[data-rider],[data-dispatch],[data-talent],[data-diff],#btnReroll,#btnMeditate,#btnExport,#btnImport,#btnReset,#btnRename,#btnHelp,.tab');
     if (!t) return;
 
     if (t.classList.contains('tab')) {
@@ -1874,6 +1913,7 @@
     if (t.dataset.rider) { buyRider(); return; }
     if (t.dataset.dispatch) { buyDispatch(parseInt(t.dataset.dispatch, 10)); return; }
     if (t.dataset.talent) { buyTalent(t.dataset.talent); return; }
+    if (t.dataset.diff) { setDifficulty(t.dataset.diff); return; }
 
     switch (t.id) {
       case 'btnReroll':

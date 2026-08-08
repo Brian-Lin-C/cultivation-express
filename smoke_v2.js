@@ -187,6 +187,15 @@ DATA.GUIDES.forEach((g, i) => {
   ok(g.reward.stones > 0 || g.reward.merit > 0, `GUIDES[${g.id}] 无奖励`);
 });
 
+// 4g) v2.4.2：难度
+ok(Array.isArray(DATA.DIFFICULTIES) && DATA.DIFFICULTIES.length === 3, 'DIFFICULTIES 应为 3 档');
+DATA.DIFFICULTIES.forEach((d, i) => {
+  ok(d.id && d.ico && d.name && d.desc, `DIFFICULTIES[${i}] 字段缺失`);
+  ok(d.limitMul > 0 && d.limitMul <= 1 && d.decayMul >= 1 && d.eventMul >= 1, `DIFFICULTIES[${d.id}] 数值异常`);
+  ok(d.wrathLoss > 0 && d.wrathLoss < 1 && d.payMul >= 1, `DIFFICULTIES[${d.id}] 惩罚/报酬异常`);
+});
+ok(DATA.DIFFICULTIES[0].id === 'easy', '默认难度应为 easy（老存档兼容）');
+
 // 5) 因果链 flag 有产出方（set 在前置事件中）与触发方（cond 引用）
 const src = dataSrc;
 ['sparedRobber', 'fedCrane', 'offendedDemon', 'metOldman'].forEach(flag => {
@@ -201,6 +210,7 @@ ok(achIds.includes('trialpass'), '缺少 trialpass 成就');
 ok(achIds.includes('quest10') && achIds.includes('heat5'), '缺少 v2.1 成就');
 ok(achIds.includes('build1'), '缺少 build1（自成一派）成就');
 ok(achIds.includes('guide'), '缺少 guide（初出茅庐）成就');
+ok(achIds.includes('hard30'), '缺少 hard30（修罗道骑手）成就');
 
 // 7) 基础表
 ok((DATA.AREAS || []).length === 5, 'AREAS 应为 5');
@@ -220,7 +230,7 @@ const gameSrc = fs.readFileSync(path.join(__dirname, 'js', 'game.js'), 'utf8');
  'renderBuffs', 'questProgress', 'ensureQuests', 'recentEvents', 'questHtml',
  'beginDelivery', 'castSkill', 'renderSkills', 'currentWeather', 'routeStats', 'computeBuild', 'bumpPersonality', 'countDecision', 'skillCost', 'skillCd', 'hasBuild',
  'gainTrust', 'relOf', 'npcLevel', 'pickFailureStory', 'showFailureStory', 'persFactor',
- 'guideAdvance', 'guideHtml', 'showWelcome', 'showHelp'].forEach(fn => {
+ 'guideAdvance', 'guideHtml', 'showWelcome', 'showHelp', 'difficulty', 'setDifficulty'].forEach(fn => {
   if (!gameSrc.includes(fn)) { console.log('GAME_MISSING: ' + fn); process.exit(1); }
 });
 try {

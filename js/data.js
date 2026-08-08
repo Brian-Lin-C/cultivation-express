@@ -857,6 +857,13 @@ const DATA = {
     { id: 'bond',   name: '前世旧识', max: 1, costs: [3],       desc: '轮回后熟客好感全部保留' },
   ],
 
+  /* ---------- 难度（v2.4.2） ---------- */
+  DIFFICULTIES: [
+    { id: 'easy',   ico: '🍵', name: '清闲', desc: '游历看剧情，顺风顺水。', limitMul: 1.0,  decayMul: 1.0,  eventMul: 1.0,  wrathLoss: 0.25, wrathMerit: 10, payMul: 1.0 },
+    { id: 'normal', ico: '⚔️', name: '标准', desc: '时限收紧、餐损加快、变故更频，报酬 +10%。', limitMul: 0.88, decayMul: 1.25, eventMul: 1.15, wrathLoss: 0.30, wrathMerit: 15, payMul: 1.1 },
+    { id: 'hard',   ico: '🔥', name: '修罗', desc: '步步惊心、天谴剥皮，报酬 +25%。修罗道送出 30 单有专属成就。', limitMul: 0.75, decayMul: 1.6, eventMul: 1.35, wrathLoss: 0.40, wrathMerit: 20, payMul: 1.25 },
+  ],
+
   /* ---------- 新手引导（v2.4.1） ---------- */
   GUIDES: [
     { id: 'accept',  name: '第一单生意', desc: '在「接单」页挑一张订单符，择路出发。', hint: '看清报酬/时限/预计耗时再接；预计耗时标红 = 大概率超时', reward: { stones: 20 } },
@@ -891,6 +898,7 @@ const DATA = {
     { id: 'fate1',     ico: '🌟', name: '天命所归',   desc: '触发一次天命订单' },
     { id: 'build1',    ico: '🥋', name: '自成一派',   desc: '悟出你的第一个流派' },
     { id: 'guide',     ico: '🎓', name: '初出茅庐',   desc: '完成全部新手引导' },
+    { id: 'hard30',    ico: '🔥', name: '修罗道骑手', desc: '修罗难度下累计送出 30 单' },
   ],
 
   /* ---------- 结局 ---------- */
