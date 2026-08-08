@@ -756,18 +756,26 @@ const DATA = {
       mods: { road: { event: 1.2 }, trail: { event: 1.2 }, canyon: { event: 1.2 } } },
   ],
 
-  /* ---------- 流派（v2.2 预埋接口：功法组合 + 人格自动生成称号） ---------- */
+  /* ---------- 流派（v2.4 · 功法组合+性情+习惯自动生成，带实质被动） ---------- */
   BUILDS: [
-    { need: ['shenfa', 'shenshi'], name: '风行剑送流', desc: '身法配灵眸：来去如风，算无遗策。' },
-    { need: ['dianjin', 'guixi'],  name: '因果商人流', desc: '点金配龟息：小费翻倍，时限宽裕，闷声发财。' },
-    { need: ['hutu', 'shenfa'],    name: '铁壁快送流', desc: '护体配身法：又快又稳，餐箱纹丝不动。' },
-    { need: ['shenfa', 'guixi'],   name: '天涯信使流', desc: '身法配龟息：千里转瞬，使命必达。' },
-    { need: ['shenshi', 'hutu'],   name: '金瞳铁壁流', desc: '灵眸配护体：看破凶险，四平八稳。' },
-    { need: ['dianjin', 'shenfa'], name: '赏金急脚流', desc: '点金配身法：快送快赚，赏金猎人。' },
-    { need: ['guixi', 'hutu'],     name: '不动明王流', desc: '龟息配护体：稳如泰山，细水长流。' },
-    { need: ['shenshi', 'dianjin'], name: '慧眼识珠流', desc: '灵眸配点金：专挑肥单，逢凶化吉。' },
-    { need: ['shenfa', 'dianjin'], name: '追风赏金流', desc: '身法配点金：速度与贪婪并存。' },
-    { need: ['guixi', 'shenshi'],  name: '洞玄静观流', desc: '龟息配灵眸：以静制动，后发先至。' },
+    { need: ['shenfa', 'shenshi'], name: '风行剑送流', desc: '身法配灵眸：来去如风，算无遗策。',
+      perk: '灵眸绕路道心消耗 8→6，御风诀冷却 15s→12s' },
+    { need: ['dianjin', 'guixi'],  name: '因果商人流', desc: '点金配龟息：小费翻倍，时限宽裕，闷声发财。',
+      perk: '小费概率 +15%，小费金额 +25%' },
+    { need: ['hutu', 'shenfa'],    name: '铁壁快送流', desc: '护体配身法：又快又稳，餐箱纹丝不动。',
+      perk: '配送速度 +5%，途中自然餐损 -30%' },
+    { need: ['shenfa', 'guixi'],   name: '天涯信使流', desc: '身法配龟息：千里转瞬，使命必达。',
+      perk: '全路线耗时 -8%' },
+    { need: ['shenshi', 'hutu'],   name: '金瞳铁壁流', desc: '灵眸配护体：看破凶险，四平八稳。',
+      perk: '镇食诀灵力消耗 30→20' },
+    { need: ['dianjin', 'shenfa'], name: '赏金急脚流', desc: '点金配身法：快送快赚，赏金猎人。',
+      perk: '五星连击加成上限 25%→35%，御风诀灵力消耗 25→20' },
+    { need: ['guixi', 'hutu'],     name: '不动明王流', desc: '龟息配护体：稳如泰山，细水长流。',
+      perk: '差评的道心/气运损失减半' },
+    { need: ['shenshi', 'dianjin'], name: '慧眼识珠流', desc: '灵眸配点金：专挑肥单，逢凶化吉。',
+      perk: '换一批订单 5→2 灵石' },
+    { need: ['guixi', 'shenshi'],  name: '洞玄静观流', desc: '龟息配灵眸：以静制动，后发先至。',
+      perk: '打坐间隔 8s→6s，遁影诀冷却 45s→35s' },
   ],
 
   /* ---------- NPC 人脉（v2.3 · 招牌客人，信任升级解锁实质内容） ---------- */
@@ -872,6 +880,7 @@ const DATA = {
     { id: 'quest10',   ico: '📜', name: '悬赏猎人',   desc: '完成 10 张门派悬赏' },
     { id: 'heat5',     ico: '🔥', name: '手感滚烫',   desc: '达成五星五连击' },
     { id: 'fate1',     ico: '🌟', name: '天命所归',   desc: '触发一次天命订单' },
+    { id: 'build1',    ico: '🥋', name: '自成一派',   desc: '悟出你的第一个流派' },
   ],
 
   /* ---------- 结局 ---------- */

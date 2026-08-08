@@ -8,6 +8,7 @@
  * v2.2：配送神通（灵力/冷却）+ 路线选择 + 天机轮换 + 传奇分层
  *       + 行为标签/人脉/流派接口预埋 + 决策密度统计
  * v2.3：情报型事件（灵眸揭示）+ 人格影响事件池 + 失败剧情 + NPC 人脉基础版
+ * v2.4：流派被动神通（9 大流派落地）+ 流派播报 + 路线偏好画像
  * ========================================================= */
 (function () {
   'use strict';
@@ -109,6 +110,7 @@
   function displayName() { return META.name || '你'; }
   function speed() {
     var v = DATA.MOUNTS[S.mount].spd * (1 + 0.12 * S.arts.shenfa) * (1 + S.legacySpeed) * (1 + 0.05 * tLv('feet'));
+    if (hasBuild('铁壁快送流')) v *= 1.05;
     if (Date.now() < S.buffs.speedUntil) v *= 2;
     return v;
   }
@@ -150,16 +152,32 @@
     var evtMul = route.event * (m.event || 1);
     // 铁牛护航：结识后魔修峡谷事件密度 -30%
     if (route.id === 'canyon' && relOf('biao').trust >= 1) evtMul *= 0.7;
+    var timeMulR = route.time * (m.time || 1);
+    // 天涯信使流：全路线耗时 -8%
+    if (hasBuild('天涯信使流')) timeMulR *= 0.92;
     return {
-      time: route.time * (m.time || 1),
+      time: timeMulR,
       event: evtMul,
       pay: route.pay * (m.pay || 1),
       boosted: !!w.mods[route.id],
     };
   }
   function skillCost(sk) {
-    if (sk.id === 'dunying' && currentWeather().id === 'mist') return Math.ceil(sk.cost / 2);
-    return sk.cost;
+    var c = sk.cost;
+    if (sk.id === 'dunying' && currentWeather().id === 'mist') c = Math.ceil(c / 2);
+    if (sk.id === 'zhenshi' && hasBuild('金瞳铁壁流')) c -= 10;
+    if (sk.id === 'yufeng' && hasBuild('赏金急脚流')) c -= 5;
+    return Math.max(5, c);
+  }
+  function skillCd(sk) {
+    var cd = sk.cd;
+    if (sk.id === 'yufeng' && hasBuild('风行剑送流')) cd -= 3;
+    if (sk.id === 'dunying' && hasBuild('洞玄静观流')) cd -= 10;
+    return Math.max(5, cd);
+  }
+  function hasBuild(name) {
+    var b = computeBuild();
+    return !!(b && b.name === name);
   }
 
   /* ---------------- 行为标签 / 流派（v2.2 预埋接口） ---------------- */
@@ -503,6 +521,9 @@
     };
     S.meditating = false;
     bumpPersonality(route.pers, 1);
+    var ru = S.flags.routeUse || {};
+    ru[route.id] = (ru[route.id] || 0) + 1;
+    S.flags.routeUse = ru;
     countDecision();
 
     log('📦 接单：给' + order.customer + '送「' + order.food + '」（' + DATA.AREAS[order.area].name + ' · ' + route.name + '，时限 ' + order.limit + 's）', 'l-evt');
@@ -646,7 +667,7 @@
 
     // 灵眸 1 级：消耗道心的绕路（成功率随连用递减）
     if (S.arts.shenshi >= 1) {
-      var cost = 8;
+      var cost = hasBuild('风行剑送流') ? 6 : 8;
       var dc = dodgeChance();
       choices.unshift({
         t: '👁️ 灵眸绕路',
@@ -698,12 +719,16 @@
     var bad = stars <= 2 || late;
 
     var heat = S.flags.heat || 0;
-    var heatMul = 1 + Math.min(heat * 0.05, 0.25); // 五星连击：每连 +5% 报酬（封顶 25%）
+    var heatCap = hasBuild('赏金急脚流') ? 0.35 : 0.25; // 流派加成：连击封顶 25%→35%
+    var heatMul = 1 + Math.min(heat * 0.05, heatCap); // 五星连击：每连 +5% 报酬
     var pay = o.pay * (0.4 + ig / 160) * (stars >= 4 ? 1.2 : stars === 3 ? 0.9 : 0.6) * payMul() * heatMul;
     pay = Math.max(1, Math.round(pay));
     var tip = 0;
-    var tipChance = 0.15 + 0.12 * S.arts.dianjin;
-    if (good && (o.regular || Math.random() < tipChance)) tip = Math.round(o.pay * (0.2 + Math.random() * 0.4));
+    var tipChance = 0.15 + 0.12 * S.arts.dianjin + (hasBuild('因果商人流') ? 0.15 : 0);
+    if (good && (o.regular || Math.random() < tipChance)) {
+      tip = Math.round(o.pay * (0.2 + Math.random() * 0.4));
+      if (hasBuild('因果商人流')) tip = Math.round(tip * 1.25);
+    }
 
     var meritGain = 0;
     if (good) meritGain = 3 + o.area + (o.special === 'bigshot' ? 10 : 0) + (o.special === 'demon' ? 8 : 0);
@@ -721,7 +746,7 @@
         S.fiveStar++;
         S.luck = clamp(S.luck + 1, 0, 100);
         S.flags.heat = heat + 1;
-        if (S.flags.heat >= 2) log('🔥 五星连击 ×' + S.flags.heat + '！报酬加成 +' + Math.min(S.flags.heat * 5, 25) + '%', 'l-gold');
+        if (S.flags.heat >= 2) log('🔥 五星连击 ×' + S.flags.heat + '！报酬加成 +' + Math.min(S.flags.heat * 5, Math.round(heatCap * 100)) + '%', 'l-gold');
         if (S.flags.heat >= 5) unlockAch('heat5');
       }
       S.resolve = clamp(S.resolve + 2, 0, 100);
@@ -734,8 +759,13 @@
     } else if (bad) {
       S.bad++; S.badStreak++; S.goodStreak = 0;
       S.flags.heat = 0;
-      S.resolve = clamp(S.resolve - 4, 0, 100);
-      S.luck = clamp(S.luck - 2, 0, 100);
+      if (hasBuild('不动明王流')) {
+        S.resolve = clamp(S.resolve - 2, 0, 100);
+        S.luck = clamp(S.luck - 1, 0, 100);
+      } else {
+        S.resolve = clamp(S.resolve - 4, 0, 100);
+        S.luck = clamp(S.luck - 2, 0, 100);
+      }
       log('❌ 差评！' + starStr + (late ? '（超时）' : '') + ' 仅得 ' + pay + ' 灵石。' + o.customer + '扬言要给你点颜色看看。', 'l-bad');
     } else {
       S.goodStreak = 0; S.badStreak = 0;
@@ -1287,7 +1317,7 @@
     if (cdLeft > 0) { toast(sk.name + '尚在调息（剩 ' + cdLeft + 's）'); return; }
     if (d.mana < cost) { toast('灵力不足（需 ' + cost + '）'); return; }
     d.mana -= cost;
-    d.cds[id] = now + sk.cd * 1000;
+    d.cds[id] = now + skillCd(sk) * 1000;
     countDecision();
     if (id === 'yufeng') {
       d.yufengUntil = now + sk.dur * 1000;
@@ -1372,13 +1402,14 @@
         '<span>预计 <b' + (risky ? ' class="red"' : '') + '>' + est + 's</b></span></div>' +
         '<button class="btn primary" data-accept="' + o.id + '">' + (o.trial ? '迎接试炼' : '接单出发') + '</button></div>';
     });
+    var rerollCost = hasBuild('慧眼识珠流') ? 3 : 5;
     html += '<div class="row-btns">' +
-      '<button class="btn" id="btnReroll">🔄 换一批（-5 灵石）</button>' +
+      '<button class="btn" id="btnReroll">🔄 换一批（-' + rerollCost + ' 灵石）</button>' +
       '<button class="btn' + (S.meditating ? ' primary' : '') + '" id="btnMeditate">🧘 ' + (S.meditating ? '打坐中…' : '打坐（功德+道心）') + '</button></div>';
     var ps = playerScore(), rs = rivalScore();
     html += '<div class="muted small center mt8">好评率 ' + (rate === null ? '--' : rate + '%') +
       ' · 连续好评 ' + S.goodStreak + ' · 连续差评 ' + S.badStreak + '（三连差评会遭天谴⚡）</div>' +
-      ((S.flags.heat || 0) >= 2 ? '<div class="small center" style="color:var(--gold)">🔥 五星连击 ×' + S.flags.heat + ' · 报酬 +' + Math.min(S.flags.heat * 5, 25) + '%</div>' : '') +
+      ((S.flags.heat || 0) >= 2 ? '<div class="small center" style="color:var(--gold)">🔥 五星连击 ×' + S.flags.heat + ' · 报酬 +' + Math.min(S.flags.heat * 5, hasBuild('赏金急脚流') ? 35 : 25) + '%</div>' : '') +
       '<div class="muted small center">🏆 骑手榜：' + esc(displayName()) + ' ' + ps + ' 分' +
       (ps > rs ? ' 🥇榜一' : ' 🥈第二') + ' · 蓝袍宗·燕十三 ' + rs + ' 分</div>';
     pane.innerHTML = html;
@@ -1520,9 +1551,22 @@
     html += '<div class="sec-title">流派</div>';
     if (build) {
       html += '<div class="ach done"><div class="a-ico">🥋</div><div><div class="a-name">' + build.name + '</div>' +
-        '<div class="a-desc">' + build.desc + '</div></div></div>';
+        '<div class="a-desc">' + build.desc + '</div>' +
+        '<div class="a-desc" style="color:var(--gold)">✦ 流派神通：' + build.perk + '</div></div></div>';
     } else {
-      html += '<div class="muted small">尚无流派——任意两门功法修至 2 层，自会悟出你的流派。人格与习惯会让它独一无二。</div>';
+      html += '<div class="muted small">尚无流派——任意两门功法修至 2 层，自会悟出你的流派，并获得专属流派神通（被动加成）。</div>';
+    }
+    // 路线偏好画像（v2.4）
+    var routeUse = S.flags.routeUse || {};
+    var ruNames = { road: '官道', trail: '山径', canyon: '峡谷' };
+    var ruBest = null, ruTotal = 0;
+    Object.keys(routeUse).forEach(function (rid) {
+      ruTotal += routeUse[rid];
+      if (!ruBest || routeUse[rid] > routeUse[ruBest]) ruBest = rid;
+    });
+    if (ruBest && ruTotal >= 3) {
+      html += '<div class="muted small center">惯走之路：' + (ruNames[ruBest] || ruBest) +
+        '（' + Math.round(routeUse[ruBest] / ruTotal * 100) + '% 的行程都选了它）</div>';
     }
     var p = S.personality || {};
     if (personalityTotal() > 0) {
@@ -1616,7 +1660,7 @@
       '<div class="sec-title">危险区</div>' +
       '<div class="row-btns"><button class="btn danger" id="btnReset">🗑️ 删除存档重新开始</button></div>' +
       '<div class="sec-title">关于</div>' +
-      '<div class="muted small">《我在修仙界送外卖》v2.3 · 纯文字单机小游戏 · 无外链资源 · 无声音<br>' +
+      '<div class="muted small">《我在修仙界送外卖》v2.4 · 纯文字单机小游戏 · 无外链资源 · 无声音<br>' +
       '题材：修仙 × 外卖 · 玩法：择路配送 + 神通操作 + 情报事件 + 人脉经营 + 因果链 + 轮回天赋 + 多结局</div>';
   }
 
@@ -1624,6 +1668,18 @@
     renderStats();
     renderBanner();
     renderBuffs();
+    // 流派变化播报（v2.4）
+    var curBuild = computeBuild();
+    var curBuildName = curBuild ? curBuild.name : '';
+    if (curBuildName !== (S.flags.buildName || '')) {
+      if (curBuild) {
+        log('🥋 你悟出了流派「' + curBuild.name + '」——' + curBuild.perk, 'l-gold');
+        toast('🥋 自成一派 · ' + curBuild.name);
+        pushHistory('悟出流派「' + curBuild.name + '」');
+        unlockAch('build1');
+      }
+      S.flags.buildName = curBuildName;
+    }
     if (activeTab === 'orders') renderOrders();
     else if (activeTab === 'shop') renderShop();
     else if (activeTab === 'cult') renderCult();
@@ -1682,7 +1738,7 @@
     // 打坐：功德 + 道心
     if (S.meditating && !delivery) {
       meditateAcc += dt;
-      if (meditateAcc >= 8) {
+      if (meditateAcc >= (hasBuild('洞玄静观流') ? 6 : 8)) {
         meditateAcc = 0;
         S.merit += 1;
         S.resolve = clamp(S.resolve + 1, 0, 100);
@@ -1752,8 +1808,8 @@
 
     switch (t.id) {
       case 'btnReroll':
-        if (S.stones < 5 || delivery) return;
-        S.stones -= 5;
+        if (S.stones < (hasBuild('慧眼识珠流') ? 3 : 5) || delivery) return;
+        S.stones -= hasBuild('慧眼识珠流') ? 3 : 5;
         orders = [];
         refillOrders();
         log('🔄 换了新一批订单。', 'l-sys');

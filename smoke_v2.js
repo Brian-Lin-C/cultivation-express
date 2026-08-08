@@ -144,9 +144,12 @@ DATA.WEATHERS.forEach((w, i) => {
     ok(DATA.ROUTES.some(r => r.id === rid), `WEATHERS[${w.id}].mods 引用了不存在的路线: ${rid}`);
   });
 });
-ok(Array.isArray(DATA.BUILDS) && DATA.BUILDS.length >= 5, 'BUILDS 数量不足');
+ok(Array.isArray(DATA.BUILDS) && DATA.BUILDS.length === 9, 'BUILDS 应为 9 个流派');
+const buildCombos = DATA.BUILDS.map(b => b.need.slice().sort().join('+'));
+ok(new Set(buildCombos).size === DATA.BUILDS.length, 'BUILDS 功法组合重复（存在不可达流派）');
 DATA.BUILDS.forEach((b, i) => {
-  ok(Array.isArray(b.need) && b.need.length === 2 && b.name && b.desc, `BUILDS[${i}] 字段异常`);
+  ok(Array.isArray(b.need) && b.need.length === 2 && b.name && b.desc && b.perk, `BUILDS[${i}] 字段异常（缺 perk?）`);
+  b.need.forEach(k => ok(DATA.ARTS.some(a => a.id === k), `BUILDS[${b.name}] 引用不存在的功法: ${k}`));
 });
 
 // 4e) v2.3：NPC 人脉 / 失败剧情 / 事件标注
@@ -187,6 +190,7 @@ const achIds = (DATA.ACHIEVEMENTS || []).map(a => a.id);
 ok(new Set(achIds).size === achIds.length, '成就 id 重复');
 ok(achIds.includes('trialpass'), '缺少 trialpass 成就');
 ok(achIds.includes('quest10') && achIds.includes('heat5'), '缺少 v2.1 成就');
+ok(achIds.includes('build1'), '缺少 build1（自成一派）成就');
 
 // 7) 基础表
 ok((DATA.AREAS || []).length === 5, 'AREAS 应为 5');
@@ -204,7 +208,7 @@ const gameSrc = fs.readFileSync(path.join(__dirname, 'js', 'game.js'), 'utf8');
 // 引擎引用的关键函数/特征存在性
 ['rollOutcome', 'dodgeChance', 'makeTrialOrder', 'promptName', 'pushHistory', 'renderBanner', 'pendingGate', 'rawLevel',
  'renderBuffs', 'questProgress', 'ensureQuests', 'recentEvents', 'questHtml',
- 'beginDelivery', 'castSkill', 'renderSkills', 'currentWeather', 'routeStats', 'computeBuild', 'bumpPersonality', 'countDecision', 'skillCost',
+ 'beginDelivery', 'castSkill', 'renderSkills', 'currentWeather', 'routeStats', 'computeBuild', 'bumpPersonality', 'countDecision', 'skillCost', 'skillCd', 'hasBuild',
  'gainTrust', 'relOf', 'npcLevel', 'pickFailureStory', 'showFailureStory', 'persFactor'].forEach(fn => {
   if (!gameSrc.includes(fn)) { console.log('GAME_MISSING: ' + fn); process.exit(1); }
 });
