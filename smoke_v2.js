@@ -82,7 +82,7 @@ ok(Array.isArray(DATA.TRIALS) && DATA.TRIALS.length === 3, 'TRIALS 应为 3 条'
 // 3) 事件库（areas 数组）
 const events = DATA.EVENTS || [];
 let multiOutChoices = 0;
-ok(events.length === 20, `事件数量应为 20，实际 ${events.length}`);
+ok(events.length === 30, `事件数量应为 30，实际 ${events.length}`);
 let totalOuts = 0;
 events.forEach((ev, i) => {
   ok(ev.id, `EVENTS[${i}] 缺 id`);
@@ -108,8 +108,24 @@ events.forEach((ev, i) => {
 
 // 4) 因果链/彩蛋事件
 const idsSet = new Set(events.map(e => e.id));
-['robberReturn', 'craneReturn', 'demonAmbush', 'oldmanTest', 'timeslip'].forEach(id =>
+['robberReturn', 'craneReturn', 'demonAmbush', 'oldmanTest', 'timeslip', 'beggarReturn', 'beastReturn'].forEach(id =>
   ok(idsSet.has(id), `因果链/彩蛋事件缺失: ${id}`));
+// 4b) 因果链事件必须有 flag 清理属性（防重复刷出）
+['robberReturn', 'craneReturn', 'demonAmbush', 'oldmanTest', 'beggarReturn', 'beastReturn'].forEach(id => {
+  const ev = events.find(e => e.id === id);
+  ok(ev.flag && typeof ev.flag === 'string', `${id} 缺 flag 清理属性`);
+});
+
+// 4c) 悬赏表
+ok(Array.isArray(DATA.QUESTS) && DATA.QUESTS.length >= 8, 'QUESTS 数量不足');
+const qKeys = new Set();
+(DATA.QUESTS || []).forEach((q, i) => {
+  ok(q.id && q.name && q.desc && q.key, `QUESTS[${i}] 字段缺失`);
+  ok(typeof q.target === 'number' && q.target > 0, `QUESTS[${i}].target 非正`);
+  ok(q.reward && (q.reward.ds || q.reward.dm), `QUESTS[${i}] 缺奖励`);
+  ok(!qKeys.has(q.key), `QUESTS key 重复: ${q.key}`);
+  qKeys.add(q.key);
+});
 
 // 5) 因果链 flag 有产出方（set 在前置事件中）与触发方（cond 引用）
 const src = dataSrc;
@@ -118,10 +134,11 @@ const src = dataSrc;
   ok(hasSet, `因果 flag 无产出方: ${flag}`);
 });
 
-// 6) 成就唯一 + trialpass
+// 6) 成就唯一 + trialpass + v2.1 新成就
 const achIds = (DATA.ACHIEVEMENTS || []).map(a => a.id);
 ok(new Set(achIds).size === achIds.length, '成就 id 重复');
 ok(achIds.includes('trialpass'), '缺少 trialpass 成就');
+ok(achIds.includes('quest10') && achIds.includes('heat5'), '缺少 v2.1 成就');
 
 // 7) 基础表
 ok((DATA.AREAS || []).length === 5, 'AREAS 应为 5');
@@ -137,7 +154,8 @@ console.log(`DATA_OK events=${events.length} totalOuts=${totalOuts} talents=${DA
 // ---------- 载入 game.js（桩启动） ----------
 const gameSrc = fs.readFileSync(path.join(__dirname, 'js', 'game.js'), 'utf8');
 // 引擎引用的关键函数/特征存在性
-['rollOutcome', 'dodgeChance', 'makeTrialOrder', 'promptName', 'pushHistory', 'renderBanner', 'pendingGate', 'rawLevel'].forEach(fn => {
+['rollOutcome', 'dodgeChance', 'makeTrialOrder', 'promptName', 'pushHistory', 'renderBanner', 'pendingGate', 'rawLevel',
+ 'renderBuffs', 'questProgress', 'ensureQuests', 'recentEvents', 'questHtml'].forEach(fn => {
   if (!gameSrc.includes(fn)) { console.log('GAME_MISSING: ' + fn); process.exit(1); }
 });
 try {

@@ -3,6 +3,8 @@
  * 纯前端 · localStorage 存档（键名前缀 cultexpress_）
  * v2.0：多结果摇号 + 因果链 + 气运/道心 + 灵眸改版 + 命名
  *       + 境界试炼 + 配送史册 + 彩蛋 + 实时 UI
+ * v2.1：门派悬赏 + 五星连击 + 事件冷却防重复 + 因果标记清理
+ *       + 10 个新事件 + App 式视口布局 + buff 实时计时
  * ========================================================= */
 (function () {
   'use strict';
@@ -27,6 +29,7 @@
       riders: 0, dispatch: 0,
       buffs: { speedUntil: 0, safeNext: 0 },
       flags: {},
+      quests: [],
       achievements: achievements || [],
       endings: endings || [],
       run: run || 1,
@@ -123,6 +126,58 @@
   }
   function dodgeChance() {
     return clamp(85 - 20 * (S.flags.dodges || 0) + 5 * (S.arts.shenshi - 1), 20, 90);
+  }
+
+  /* ---------------- 门派悬赏（滚动任务） ---------------- */
+  function questDef(id) {
+    return DATA.QUESTS.find(function (d) { return d.id === id; });
+  }
+  function ensureQuests() {
+    if (!Array.isArray(S.quests)) S.quests = [];
+    S.quests = S.quests.filter(function (q) { return questDef(q.id); });
+    var lv = level();
+    var pool = DATA.QUESTS.filter(function (d) {
+      return (!d.minLv || d.minLv <= lv) && !S.quests.some(function (q) { return q.id === d.id; });
+    });
+    while (S.quests.length < 3 && pool.length) {
+      var d = pick(pool);
+      pool = pool.filter(function (x) { return x !== d; });
+      S.quests.push({ id: d.id, prog: 0 });
+    }
+  }
+  function questProgress(key, n, absolute) {
+    ensureQuests();
+    var changed = false;
+    S.quests.forEach(function (q) {
+      var d = questDef(q.id);
+      if (!d || d.key !== key || q.prog >= d.target) return;
+      q.prog = absolute ? Math.max(q.prog, Math.min(d.target, n)) : Math.min(d.target, q.prog + (n || 1));
+      if (q.prog >= d.target) {
+        changed = true;
+        var rw = d.reward || {};
+        if (rw.ds) S.stones += rw.ds;
+        if (rw.dm) S.merit += rw.dm;
+        if (rw.dl) S.luck = clamp(S.luck + rw.dl, 0, 100);
+        if (rw.dr) S.resolve = clamp(S.resolve + rw.dr, 0, 100);
+        S.flags.questsDone = (S.flags.questsDone || 0) + 1;
+        log('📜 悬赏完成「' + d.name + '」：灵石 +' + (rw.ds || 0) + '、功德 +' + (rw.dm || 0) + '！', 'l-gold');
+        toast('📜 悬赏完成 · ' + d.name);
+        pushHistory('📜 完成门派悬赏「' + d.name + '」');
+        if (S.flags.questsDone >= 10) unlockAch('quest10');
+      }
+    });
+    // 三张全部完成 → 全勤奖 + 换新一批
+    if (S.quests.length === 3 && S.quests.every(function (q) {
+      var d = questDef(q.id);
+      return d && q.prog >= d.target;
+    })) {
+      S.quests = [];
+      S.stones += 50;
+      changed = true;
+      log('📜 三张悬赏全部完成！门派发了 50 灵石全勤奖，新悬赏已贴出。', 'l-gold');
+      ensureQuests();
+    }
+    if (changed) { save(); if (activeTab === 'orders' && !delivery) renderOrders(); }
   }
 
   /* ---------------- 骑手自动化 ---------------- */
@@ -363,21 +418,30 @@
     }
     var res = out.run ? out.run(ctx) : (out.res || {});
     eff(res);
+    if (out.good) questProgress('evtgood', 1);
   }
 
   function triggerEvent() {
     var d = delivery;
     S.__lv = level();
     var ctx = { s: S, order: d.order, eff: eff };
+    var recent = S.flags.recentEvents || [];
     var pool = DATA.EVENTS.filter(function (e) {
       return e.areas.indexOf(d.order.area) >= 0 && (!e.cond || e.cond(ctx));
     });
-    var totalW = pool.reduce(function (a, e) { return a + e.w; }, 0);
+    // 事件冷却：最近 4 个出现过的事件降权，避免连续重复
+    var totalW = pool.reduce(function (a, e) {
+      return a + e.w * (recent.indexOf(e.id) >= 0 ? 0.15 : 1);
+    }, 0);
     var r = Math.random() * totalW, evt = pool[0];
     for (var i = 0; i < pool.length; i++) {
-      r -= pool[i].w;
+      r -= pool[i].w * (recent.indexOf(pool[i].id) >= 0 ? 0.15 : 1);
       if (r <= 0) { evt = pool[i]; break; }
     }
+    recent.push(evt.id);
+    S.flags.recentEvents = recent.slice(-4);
+    // 因果链事件触发一次后清除标记，不会反复刷出
+    if (evt.flag) S.flags[evt.flag] = 0;
 
     var choices = evt.choices
       .filter(function (ch) { return !ch.cond || ch.cond(ctx); })
@@ -442,7 +506,9 @@
     var good = stars >= 4 && !late;
     var bad = stars <= 2 || late;
 
-    var pay = o.pay * (0.4 + ig / 160) * (stars >= 4 ? 1.2 : stars === 3 ? 0.9 : 0.6) * payMul();
+    var heat = S.flags.heat || 0;
+    var heatMul = 1 + Math.min(heat * 0.05, 0.25); // 五星连击：每连 +5% 报酬（封顶 25%）
+    var pay = o.pay * (0.4 + ig / 160) * (stars >= 4 ? 1.2 : stars === 3 ? 0.9 : 0.6) * payMul() * heatMul;
     pay = Math.max(1, Math.round(pay));
     var tip = 0;
     var tipChance = 0.15 + 0.12 * S.arts.dianjin;
@@ -460,7 +526,13 @@
     var starStr = '★★★★★'.slice(0, stars) + '☆☆☆☆☆'.slice(0, 5 - stars);
     if (good) {
       S.good++; S.goodStreak++; S.badStreak = 0;
-      if (stars === 5) { S.fiveStar++; S.luck = clamp(S.luck + 1, 0, 100); }
+      if (stars === 5) {
+        S.fiveStar++;
+        S.luck = clamp(S.luck + 1, 0, 100);
+        S.flags.heat = heat + 1;
+        if (S.flags.heat >= 2) log('🔥 五星连击 ×' + S.flags.heat + '！报酬加成 +' + Math.min(S.flags.heat * 5, 25) + '%', 'l-gold');
+        if (S.flags.heat >= 5) unlockAch('heat5');
+      }
       S.resolve = clamp(S.resolve + 2, 0, 100);
       log('✅ 送达！' + starStr + ' 好评 +' + pay + ' 灵石' + (tip ? '（小费 +' + tip + '）' : '') + '，功德 +' + meritGain, 'l-good');
       if (o.special === 'demon') {
@@ -470,13 +542,23 @@
       }
     } else if (bad) {
       S.bad++; S.badStreak++; S.goodStreak = 0;
+      S.flags.heat = 0;
       S.resolve = clamp(S.resolve - 4, 0, 100);
       S.luck = clamp(S.luck - 2, 0, 100);
       log('❌ 差评！' + starStr + (late ? '（超时）' : '') + ' 仅得 ' + pay + ' 灵石。' + o.customer + '扬言要给你点颜色看看。', 'l-bad');
     } else {
       S.goodStreak = 0; S.badStreak = 0;
+      S.flags.heat = 0;
       log('😐 送达，' + starStr + ' 对方没给评价。+' + pay + ' 灵石。', 'l-sys');
     }
+
+    // 门派悬赏进度
+    questProgress('deliver', 1);
+    if (good && stars === 5) questProgress('five', 1);
+    if (good && o.area >= 3) questProgress('far', 1);
+    if (!late && ig >= 90) questProgress('perfect', 1);
+    if (tip > 0) questProgress('tip', 1);
+    questProgress('streak', S.goodStreak, true);
 
     // 史册
     pushHistory((good ? '✅' : bad ? '❌' : '😐') + ' ' + DATA.AREAS[o.area].name + ' · ' + o.customer + ' ' + starStr + ' +' + (pay + tip) + ' 灵石');
@@ -921,12 +1003,33 @@
     if ((S.flags.wrathShield || 0) > 0) parts.push('🌀天道庇护 ×' + S.flags.wrathShield);
     return parts.length ? '<div class="small buff-line center">' + parts.join(' · ') + '</div>' : '';
   }
+  function renderBuffs() {
+    var bar = $('#buffBar');
+    if (!bar) return;
+    var html = buffLine();
+    if (html) { bar.innerHTML = html; bar.classList.remove('hidden'); }
+    else { bar.innerHTML = ''; bar.classList.add('hidden'); }
+  }
+
+  function questHtml() {
+    ensureQuests();
+    var html = '<div class="order quest"><div class="o-head"><span class="o-name">📜 门派悬赏</span>' +
+      '<span class="o-area">全清奖 50 灵石 · 自动刷新</span></div>';
+    S.quests.forEach(function (q) {
+      var d = questDef(q.id);
+      if (!d) return;
+      var done = q.prog >= d.target;
+      html += '<div class="q-row' + (done ? ' done' : '') + '"><span>' + (done ? '✅' : '▫️') + ' ' + esc(d.name) + '：' + esc(d.desc) + '</span>' +
+        '<span class="q-prog">' + Math.min(q.prog, d.target) + '/' + d.target + '</span></div>';
+    });
+    return html + '</div>';
+  }
 
   function renderOrders() {
     var pane = $('#pane-orders');
     if (delivery) {
       pane.innerHTML =
-        '<div class="order"><div class="o-body center">🛵 配送进行中……留意途中变故。</div></div>' + buffLine();
+        '<div class="order"><div class="o-body center">🛵 配送进行中……留意途中变故。</div></div>';
       return;
     }
     var html = '';
@@ -934,6 +1037,7 @@
     if ((S.flags.demonCount || 0) >= 3 && S.endings.indexOf('demon') < 0) {
       html += '<div class="order special"><div class="o-body">🌙 魔尊给你留了言：「今夜，再来一趟。本尊有话对你说。」</div></div>';
     }
+    html += questHtml();
     orders.forEach(function (o) {
       var est = Math.ceil(baseTime(o) / speed());
       var risky = est > o.limit;
@@ -949,10 +1053,10 @@
     html += '<div class="row-btns">' +
       '<button class="btn" id="btnReroll">🔄 换一批（-5 灵石）</button>' +
       '<button class="btn' + (S.meditating ? ' primary' : '') + '" id="btnMeditate">🧘 ' + (S.meditating ? '打坐中…' : '打坐（功德+道心）') + '</button></div>';
-    html += buffLine();
     var ps = playerScore(), rs = rivalScore();
     html += '<div class="muted small center mt8">好评率 ' + (rate === null ? '--' : rate + '%') +
       ' · 连续好评 ' + S.goodStreak + ' · 连续差评 ' + S.badStreak + '（三连差评会遭天谴⚡）</div>' +
+      ((S.flags.heat || 0) >= 2 ? '<div class="small center" style="color:var(--gold)">🔥 五星连击 ×' + S.flags.heat + ' · 报酬 +' + Math.min(S.flags.heat * 5, 25) + '%</div>' : '') +
       '<div class="muted small center">🏆 骑手榜：' + esc(displayName()) + ' ' + ps + ' 分' +
       (ps > rs ? ' 🥇榜一' : ' 🥈第二') + ' · 蓝袍宗·燕十三 ' + rs + ' 分</div>';
     pane.innerHTML = html;
@@ -1152,13 +1256,14 @@
       '<div class="sec-title">危险区</div>' +
       '<div class="row-btns"><button class="btn danger" id="btnReset">🗑️ 删除存档重新开始</button></div>' +
       '<div class="sec-title">关于</div>' +
-      '<div class="muted small">《我在修仙界送外卖》v2.0 · 纯文字单机小游戏 · 无外链资源 · 无声音<br>' +
-      '题材：修仙 × 外卖 · 玩法：接单配送 + 随机事件 + 因果链 + 经营养成 + 轮回天赋 + 多结局</div>';
+      '<div class="muted small">《我在修仙界送外卖》v2.1 · 纯文字单机小游戏 · 无外链资源 · 无声音<br>' +
+      '题材：修仙 × 外卖 · 玩法：接单配送 + 随机事件 + 因果链 + 门派悬赏 + 经营养成 + 轮回天赋 + 多结局</div>';
   }
 
   function render() {
     renderStats();
     renderBanner();
+    renderBuffs();
     if (activeTab === 'orders') renderOrders();
     else if (activeTab === 'shop') renderShop();
     else if (activeTab === 'cult') renderCult();
@@ -1192,11 +1297,12 @@
       renderBanner(); // 倒计时常驻实时刷新，弹窗时显示「抉择中」
     }
 
-    // 顶栏资源每秒自动重绘（含骑手入账）
+    // 顶栏资源每秒自动重绘（含骑手入账 + buff 实时倒计时）
     statAcc += dt;
     if (statAcc >= 1) {
       statAcc = 0;
       renderStats();
+      renderBuffs();
       if (delivery) renderBanner();
     }
 
@@ -1217,6 +1323,7 @@
         S.merit += 1;
         S.resolve = clamp(S.resolve + 1, 0, 100);
         log('🧘 打坐静修，功德 +1，道心 +1。', 'l-sys');
+        questProgress('meditate', 1);
         renderStats();
         if (activeTab === 'cult') renderCult();
         save();

@@ -388,10 +388,192 @@ const DATA = {
       ],
     },
 
-    /* ---------- 因果链事件（由之前的选择解锁） ---------- */
+    /* ---------- v2.1 扩充事件（8 常规 + 2 因果链） ---------- */
+    {
+      id: 'peer', w: 7, areas: [0, 1, 2, 3, 4],
+      title: '迷路的外卖同行',
+      text: '一个穿青袍的骑手在路边急得团团转：「道友！这单送去哪儿啊？地图玉简碎了！」',
+      choices: [
+        { t: '帮他指路', hint: '耗时 +6s · 结善缘，或有回报', outs: [
+          { w: 45, good: true, res: { dt: 6, dm: 4, dr: 2, log: '你给他指了条近路。他千恩万谢，说改天请你喝灵茶。', cls: 'l-good' } },
+          { w: 30, good: true, res: { dt: 6, ds: 15, log: '他硬塞给你几块灵石当谢礼：「同行的规矩不能坏！」', cls: 'l-gold' } },
+          { w: 25, res: { dt: 10, log: '你俩对着碎玉简研究了半天，路是指明了，你也耽误了。', cls: 'l-sys' } },
+        ] },
+        { t: '赶时间，爱莫能助', hint: '无消耗 · 但可能败人品', outs: [
+          { w: 80, res: { log: '你喊了句「去问土地庙」就飞远了。', cls: 'l-sys' } },
+          { w: 20, bad: true, res: { dl: -2, log: '他幽怨的眼神在你背后盯了一路，你心里有点发毛。', cls: 'l-bad' } },
+        ] },
+        { t: '比比谁快', hint: '赌身法 · 赢了有彩头', outs: [
+          { w: 40, good: true, res: { ds: 20, dt: -4, log: '你一骑绝尘！他服气地掏出彩头：「黄袍宗果然名不虚传！」', cls: 'l-gold' } },
+          { w: 30, res: { dt: 6, log: '并驾齐驱三里地，不分胜负，各自赶路。', cls: 'l-sys' } },
+          { w: 30, bad: true, res: { dt: 8, di: -8, log: '过弯时你俩的餐箱撞在一起，你的汤洒了，他笑得很大声。', cls: 'l-bad' } },
+        ] },
+      ],
+    },
+    {
+      id: 'wrongfood', w: 7, areas: [0, 1, 2, 3, 4],
+      title: '出餐错误！',
+      text: '餐箱里的传音符响了，是餐馆掌柜：「小道友！方才那份餐装错了，装成隔壁桌的麻辣灵蛙了！」',
+      choices: [
+        { t: '折返换餐', hint: '耗时 +12s · 保住口碑', outs: [
+          { w: 55, good: true, res: { dt: 12, dm: 2, log: '你折回餐馆换了餐。掌柜过意不去，往餐箱里多塞了份点心。', cls: 'l-good' } },
+          { w: 45, res: { dt: 15, log: '换餐折腾了好一阵，掌柜连连作揖。', cls: 'l-sys' } },
+        ] },
+        { t: '将错就错', hint: '赌客人不介意 · 可能大翻车', outs: [
+          { w: 35, good: true, res: { ds: 10, log: '客人尝了一口眼睛一亮：「我正想换换口味！」还加了小费。', cls: 'l-gold' } },
+          { w: 30, res: { di: -10, log: '客人嘀咕着「好像不是我点的」，但也没追究。', cls: 'l-sys' } },
+          { w: 35, bad: true, res: { di: -30, log: '客人暴跳如雷：「老夫吃素三百年！」餐盒差点扣你头上。', cls: 'l-bad' } },
+        ] },
+      ],
+    },
+    {
+      id: 'swordrace', w: 6, areas: [2, 3, 4],
+      title: '飞剑飙车党',
+      text: '三道剑光从你耳边呼啸而过，为首的回头挑衅：「送外卖的，敢不敢比划比划？」',
+      choices: [
+        { t: '应战！', hint: '赌身法 · 赢了省时又扬名', outs: [
+          { w: 40, good: true, res: { dt: -8, dm: 3, log: '你一个漂亮的甩尾超过他们，剑修们心服口服，还帮你开道。', cls: 'l-gold' } },
+          { w: 30, res: { dt: 4, log: '你追得气喘，他们等你半天，最后笑着散了。', cls: 'l-sys' } },
+          { w: 30, bad: true, res: { di: -15, dt: 6, log: '他们故意掀起剑气乱流，你的餐箱被吹得翻了个面。', cls: 'l-bad' } },
+        ] },
+        { t: '让行不陪玩', hint: '耗时 +3s · 稳妥', outs: [
+          { w: 85, res: { dt: 3, log: '你靠边让行，剑光卷着笑声远去了。', cls: 'l-sys' } },
+          { w: 15, bad: true, res: { dt: 6, di: -5, log: '他们绕着你转了三圈取乐，餐盒被剑风刮开一条缝。', cls: 'l-bad' } },
+        ] },
+      ],
+    },
+    {
+      id: 'beggar', w: 6, areas: [0, 1, 2],
+      title: '路边乞修',
+      text: '一个衣衫褴褛的老修士缩在墙角，面前摆着个破碗：「行行好……三天没吃东西了……」',
+      choices: [
+        { t: '分他一份餐', hint: '餐品 -12 · 结善缘（因果）', outs: [
+          { w: 60, good: true, set: { fedBeggar: 1 }, res: { di: -12, dm: 5, dl: 2, log: '老修士狼吞虎咽，吃完深深看了你一眼：「好心肠的小哥。」', cls: 'l-good' } },
+          { w: 40, res: { di: -12, dm: 2, log: '老修士吃完倒头就睡，鼾声如雷。', cls: 'l-sys' } },
+        ] },
+        { t: '给几块灵石', hint: '-10 灵石 · 功德一件', outs: [
+          { w: 70, good: true, res: { ds: -10, dm: 3, log: '老修士捧着灵石连连道谢。', cls: 'l-good' } },
+          { w: 30, res: { ds: -10, log: '他接过灵石掂了掂，嘟囔了句「成色一般」。嘿这老头！', cls: 'l-sys' } },
+        ] },
+        { t: '绕开走', hint: '无消耗', outs: [
+          { w: 85, res: { log: '你低头快步走过。江湖险恶，先顾好自己。', cls: 'l-sys' } },
+          { w: 15, bad: true, res: { dl: -3, log: '你走过时带起的风把他的破碗刮翻了，硬币滚了一地。他叹了口气。', cls: 'l-bad' } },
+        ] },
+      ],
+    },
+    {
+      id: 'seal', w: 6, areas: [1, 2, 3],
+      title: '宗门大比封路',
+      text: '前方锣鼓喧天——宗门大比，主路封了！告示写着：「绕行三里，或持贵宾令通行。」',
+      choices: [
+        { t: '老实绕行', hint: '耗时 +10s · 稳妥', outs: [
+          { w: 80, res: { dt: 10, log: '你绕了三里山路，腿肚子转筋。', cls: 'l-sys' } },
+          { w: 20, good: true, res: { dt: 10, ds: 12, log: '绕路时捡到一个观赛者掉的荷包，里面有几块灵石。', cls: 'l-gold' } },
+        ] },
+        { t: '翻观众席溜过去', hint: '赌身法 · 失败很丢人', outs: [
+          { w: 45, good: true, res: { dt: 2, dm: 1, log: '你猫着腰从观众席下钻过，神不知鬼不觉。', cls: 'l-good' } },
+          { w: 30, res: { dt: 8, log: '被执事弟子发现，好说歹说才被放行，耽误了工夫。', cls: 'l-sys' } },
+          { w: 25, bad: true, res: { dt: 12, di: -10, log: '你被当成捣乱的拎上擂台示众，全场哄笑，餐都颠洒了。', cls: 'l-bad' } },
+        ] },
+        { t: '看会儿比赛', hint: '耗时 +8s · 或有意外收获', outs: [
+          { w: 50, res: { dt: 8, dr: 3, log: '台上打得精彩，你看得道心通透，浑身是劲。', cls: 'l-good' } },
+          { w: 30, good: true, res: { dt: 8, ds: 18, log: '你押注的那位爆冷获胜，庄家黑着脸赔了灵石。', cls: 'l-gold' } },
+          { w: 20, bad: true, res: { dt: 15, log: '比赛打到加时，你看到天黑才想起餐还没送。', cls: 'l-bad' } },
+        ] },
+      ],
+    },
+    {
+      id: 'barter', w: 5, areas: [0, 1, 2],
+      title: '以物易物',
+      text: '货郎拦住你，盯着你餐箱直搓手：「小哥，箱里那碟灵果酱……我拿好东西跟你换！」',
+      choices: [
+        { t: '换了！', hint: '餐品 -15 · 赌他的货值不值', outs: [
+          { w: 40, good: true, res: { di: -15, ds: 35, log: '货郎掏出一小袋灵砂，成色极好，转手就值 35 灵石！', cls: 'l-gold' } },
+          { w: 35, res: { di: -15, ds: 12, log: '换了几块灵石，小赚不亏。', cls: 'l-sys' } },
+          { w: 25, bad: true, res: { di: -15, log: '他递来个「上古法器」——上手一看，义乌货。', cls: 'l-bad' } },
+        ] },
+        { t: '餐品概不外售', hint: '无消耗 · 职业道德', outs: [
+          { w: 90, res: { dr: 2, log: '你抱紧餐箱拒绝。货郎竖了个大拇指：「讲究！」', cls: 'l-good' } },
+          { w: 10, bad: true, res: { dt: 5, log: '他缠着你讨价还价半天才罢休。', cls: 'l-bad' } },
+        ] },
+      ],
+    },
+    {
+      id: 'pengci', w: 6, areas: [1, 2, 3],
+      title: '碰瓷老修士',
+      text: '一个老修士忽然在你面前「哎哟」一声倒下，抱着腿直哼：「撞了人还想跑？赔钱！」',
+      choices: [
+        { t: '破财免灾', hint: '-15 灵石 · 息事宁人', outs: [
+          { w: 80, res: { ds: -15, log: '你丢下灵石就走。背后传来他数钱的欢快声音。', cls: 'l-sys' } },
+          { w: 20, bad: true, res: { ds: -25, log: '他嫌少，拉着你袖子又加价十块。', cls: 'l-bad' } },
+        ] },
+        { t: '当场理论', hint: '赌口才 · 小心被缠上', outs: [
+          { w: 45, good: true, res: { dm: 2, dr: 2, log: '你条理清晰一番分析，围观修士纷纷叫好，老头灰溜溜爬起来了。', cls: 'l-good' } },
+          { w: 30, res: { dt: 8, log: '争论了半天谁也说服不了谁，你趁乱溜了。', cls: 'l-sys' } },
+          { w: 25, bad: true, res: { dt: 12, ds: -20, log: '他往地上一躺开始哭天抢地，人越围越多，你只能掏钱脱身。', cls: 'l-bad' } },
+        ] },
+        { t: '灵眸识破', hint: '需灵眸 1 级 · 拆穿幻术', cond: (c) => c.s.arts.shenshi >= 1, outs: [
+          { w: 85, good: true, res: { dm: 3, dl: 2, log: '灵眸一扫——哪有什么伤，裤腿里塞着鸡血符！老头讪笑着跑了。', cls: 'l-gold' } },
+          { w: 15, bad: true, res: { dt: 6, ds: -10, log: '你盯着他看太久，他反咬一口说你「用邪术窥探」，只好赔钱了事。', cls: 'l-bad' } },
+        ] },
+      ],
+    },
+    {
+      id: 'spiritbeast', w: 6, areas: [2, 3, 4],
+      title: '灵兽拦路',
+      text: '一头圆滚滚的食铁灵兽坐在路中央，眼巴巴盯着你的餐箱，口水流了一地。',
+      choices: [
+        { t: '分它点吃的', hint: '餐品 -10 · 结善缘（因果）', outs: [
+          { w: 65, good: true, set: { fedBeast: 1 }, res: { di: -10, dm: 3, log: '灵兽吃得眉开眼笑，蹭了蹭你的腿，记住了你的气味。', cls: 'l-good' } },
+          { w: 35, res: { di: -12, log: '它吃完还想扒拉你的餐箱，你费了好大劲才护住。', cls: 'l-sys' } },
+        ] },
+        { t: '挥手驱赶', hint: '有风险 · 灵兽不好惹', outs: [
+          { w: 45, res: { dt: 4, log: '灵兽撇撇嘴，慢吞吞挪开了。', cls: 'l-sys' } },
+          { w: 30, bad: true, res: { di: -15, dt: 5, log: '它被惹恼了，一爪子拍歪你的餐箱，扬长而去。', cls: 'l-bad' } },
+          { w: 25, good: true, res: { dm: 2, log: '它居然听懂了，还给你作了个揖才走。', cls: 'l-good' } },
+        ] },
+        { t: '绕道走', hint: '耗时 +6s · 稳妥', outs: [
+          { w: 90, res: { dt: 6, log: '你绕了个大弯，它全程目送你，口水滴成了小水洼。', cls: 'l-sys' } },
+          { w: 10, bad: true, res: { dt: 10, log: '绕道的路全是烂泥，你深一脚浅一脚。', cls: 'l-bad' } },
+        ] },
+      ],
+    },
+    {
+      id: 'beggarReturn', w: 7, areas: [0, 1, 2],
+      cond: (c) => c.s.flags.fedBeggar >= 1,
+      flag: 'fedBeggar',
+      title: '乞修的真面目',
+      text: '又是那个墙角。老修士站起身，掸了掸破衣——褴褛尽褪，竟化作一身云纹道袍：「小友，那日一餐，老朽记下了。」',
+      choices: [
+        { t: '收下谢礼', hint: '善缘结果 · 厚报', outs: [
+          { w: 60, good: true, res: { ds: 80, dm: 8, log: '他袖袍一挥，一袋灵石落入你怀中：「云游道人，别的不多，灵石管够。」', cls: 'l-gold' } },
+          { w: 40, good: true, res: { dm: 12, dr: 8, log: '他并指在你眉心一点：「赠你一段清心咒。」你顿觉灵台空明。', cls: 'l-gold' } },
+        ] },
+        { t: '「前辈折煞我了」', hint: '谦逊作答 · 另有机缘', outs: [
+          { w: 70, good: true, res: { dm: 15, dl: 5, log: '道人抚须大笑：「不骄不躁，难得！」一缕紫气没入你体内，气运大涨。', cls: 'l-gold' } },
+          { w: 30, good: true, res: { dm: 8, dr: 5, log: '道人点点头：「去吧，你的路还长。」身影化作青烟散了。', cls: 'l-gold' } },
+        ] },
+      ],
+    },
+    {
+      id: 'beastReturn', w: 7, areas: [2, 3, 4],
+      cond: (c) => c.s.flags.fedBeast >= 1,
+      flag: 'fedBeast',
+      title: '灵兽报恩',
+      text: '地面微微震动——那头食铁灵兽不知从哪冒出来，欢快地朝你奔来，然后趴下身子，回头看你。',
+      choices: [
+        { t: '骑上去！', hint: '善缘结果 · 它要驮你一程', outs: [
+          { w: 70, good: true, res: { dt: -16, dm: 2, log: '灵兽四蹄生风，翻山越岭如履平地，直接把你驮到了目的地附近！', cls: 'l-gold' } },
+          { w: 30, good: true, res: { ds: 35, dm: 2, log: '它领你到一个山坳，用爪子刨出一窝亮晶晶的灵矿石。', cls: 'l-gold' } },
+        ] },
+      ],
+    },
+
+    /* ---------- 因果链事件（由之前的选择解锁，触发后清除标记） ---------- */
     {
       id: 'robberReturn', w: 8, areas: [1, 2, 3, 4],
       cond: (c) => c.s.flags.sparedRobber >= 1,
+      flag: 'sparedRobber',
       title: '劫修报恩',
       text: '一个熟悉的身影落在路边——是那位被你请过饭的劫修。他如今换上了镖师的制服：「恩公！我可等到你了！」',
       choices: [
@@ -407,6 +589,7 @@ const DATA = {
     {
       id: 'craneReturn', w: 8, areas: [2, 3, 4],
       cond: (c) => c.s.flags.fedCrane >= 1,
+      flag: 'fedCrane',
       title: '仙鹤引路',
       text: '头顶一声清唳——是那只仙鹤！它盘旋两圈，示意你跟上。',
       choices: [
@@ -419,6 +602,7 @@ const DATA = {
     {
       id: 'demonAmbush', w: 12, areas: [3, 4],
       cond: (c) => c.s.flags.offendedDemon >= 1,
+      flag: 'offendedDemon',
       title: '魔修伏击',
       text: '「果然是你。」路前后各落下两名魔修，为首的正是巡逻队那位：「上次不是很能耐吗？」',
       choices: [
@@ -436,6 +620,7 @@ const DATA = {
     {
       id: 'oldmanTest', w: 6, areas: [0, 1, 2, 3],
       cond: (c) => c.s.flags.metOldman >= 1 && c.s.merit >= 60,
+      flag: 'metOldman',
       title: '扫地老翁的考验',
       text: '又是那位扫地老翁。他放下扫帚，浑浊的眼睛忽然清明：「小友，老朽且问你——送的到底是餐，还是人心？」',
       choices: [
@@ -481,6 +666,18 @@ const DATA = {
     { name: '外门调度令', cost: 500,  area: 2, eff: 0.55, desc: '骑手小弟可自动配送外门订单，报酬系数 55%。' },
     { name: '内门调度令', cost: 1500, area: 3, eff: 0.5,  desc: '骑手小弟可自动配送内门订单，报酬系数 50%。' },
     { name: '秘境调度令', cost: 5000, area: 4, eff: 0.45, desc: '骑手小弟可自动配送秘境订单，报酬系数 45%。（魔域太险，小弟不去）' },
+  ],
+
+  /* ---------- 门派悬赏（滚动任务，3 张一组，全清有全勤奖） ---------- */
+  QUESTS: [
+    { id: 'q_deliver',  name: '跑腿营生',   desc: '完成 5 单配送',              key: 'deliver',  target: 5, reward: { ds: 50,  dm: 5 } },
+    { id: 'q_five',     name: '五星专业户', desc: '拿到 3 个五星好评',          key: 'five',     target: 3, reward: { ds: 60,  dm: 8 } },
+    { id: 'q_far',      name: '远征试炼',   desc: '送达 2 单秘境或魔域订单',    key: 'far',      target: 2, reward: { ds: 120, dm: 10 }, minLv: 6 },
+    { id: 'q_perfect',  name: '完璧归赵',   desc: '以 90%+ 完整度送达 3 单',    key: 'perfect',  target: 3, reward: { ds: 50,  dm: 6 } },
+    { id: 'q_evtgood',  name: '逢凶化吉',   desc: '在途中事件里拿到 2 次好结果', key: 'evtgood',  target: 2, reward: { ds: 40,  dm: 8, dl: 3 } },
+    { id: 'q_streak',   name: '连战连捷',   desc: '当前连续好评达到 5 单',      key: 'streak',   target: 5, reward: { ds: 80,  dm: 8 } },
+    { id: 'q_tip',      name: '额外打赏',   desc: '收到 3 次小费',              key: 'tip',      target: 3, reward: { ds: 60,  dm: 5 } },
+    { id: 'q_meditate', name: '吐纳养生',   desc: '打坐静修 5 次',              key: 'meditate', target: 5, reward: { ds: 30,  dm: 10, dr: 5 } },
   ],
 
   /* ---------- 灵蝶 · 天降机缘（变率奖励） ---------- */
@@ -538,6 +735,8 @@ const DATA = {
     { id: 'top1',      ico: '🥇', name: '黄袍第一人', desc: '在骑手榜上超越燕十三登顶' },
     { id: 'regular3',  ico: '❤️', name: '人情练达',   desc: '拥有 3 位熟客' },
     { id: 'trialpass', ico: '⚔️', name: '持证上岗',   desc: '完成一次境界试炼' },
+    { id: 'quest10',   ico: '📜', name: '悬赏猎人',   desc: '完成 10 张门派悬赏' },
+    { id: 'heat5',     ico: '🔥', name: '手感滚烫',   desc: '达成五星五连击' },
   ],
 
   /* ---------- 结局 ---------- */

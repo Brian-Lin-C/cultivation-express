@@ -21,11 +21,13 @@ body{
   font-family:-apple-system,"PingFang SC","Microsoft YaHei","Source Han Sans SC",sans-serif;
   font-size:15px;
   line-height:1.6;
+  overflow:hidden; /* App 式布局：整页锁定视口内，仅 #main 内部滚动 */
 }
 #app{
   max-width:760px;
   margin:0 auto;
-  min-height:100%;
+  height:100vh;   /* 旧浏览器回退 */
+  height:100dvh;  /* 动态视口：自动避开手机浏览器工具栏 */
   display:flex;
   flex-direction:column;
   padding:0 10px calc(12px + env(safe-area-inset-bottom));
@@ -102,8 +104,15 @@ h1,h2,h3,.serif{
 }
 .tab.active{color:var(--gold);border-color:var(--gold);background:var(--ink3);}
 
-/* ---------- 主区 ---------- */
-#main{flex:1;margin-top:10px;}
+/* ---------- 主区（内部滚动，顶栏/页签/日志常驻可见） ---------- */
+#main{
+  flex:1;
+  min-height:0;
+  margin-top:10px;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;
+}
 .pane{display:none;}
 .pane.active{display:block;}
 
@@ -194,6 +203,7 @@ textarea{
 
 /* ---------- 日志 ---------- */
 #logwrap{
+  flex:none;
   margin-top:12px;
   border-top:1px solid var(--line);
   padding-top:6px;
@@ -206,6 +216,7 @@ textarea{
   padding:6px 2px;
   display:flex;flex-direction:column;gap:2px;
 }
+@media (max-height:680px){ #log{height:88px;} }
 #log .l-good{color:var(--green);}
 #log .l-bad{color:var(--red);}
 #log .l-gold{color:var(--gold);}
@@ -225,7 +236,7 @@ textarea{
   border:1px solid var(--gold);
   border-radius:8px;
   padding:18px 16px;
-  max-height:82vh;overflow-y:auto;
+  max-height:82vh;max-height:82dvh;overflow-y:auto;
 }
 #modalTitle{font-size:18px;color:var(--gold);margin-bottom:8px;}
 #modalText{font-size:14px;white-space:pre-line;margin-bottom:14px;}
@@ -289,4 +300,27 @@ textarea{
   font-size:15px;
   margin-top:8px;
 }
+/* ---------- 顶栏 / 页签不随主区压缩 ---------- */
+#topbar,#tabs,#banner{flex:none;}
+
+/* ---------- buff 常驻条（每秒实时刷新） ---------- */
+#buffBar{
+  flex:none;
+  margin-top:8px;
+  background:var(--ink2);
+  border:1px solid var(--blue);
+  border-radius:var(--radius);
+  padding:6px 10px;
+}
+
+/* ---------- v2.1：门派悬赏 ---------- */
+.order.quest{border-left-color:var(--green);}
+.q-row{
+  display:flex;justify-content:space-between;gap:10px;align-items:baseline;
+  font-size:13px;margin-top:6px;color:var(--paper);
+}
+.q-row .q-prog{color:var(--muted);flex:none;font-variant-numeric:tabular-nums;}
+.q-row.done{color:var(--muted);text-decoration:line-through;}
+.q-row.done .q-prog{color:var(--green);text-decoration:none;}
+
 .order.trial{border-left-color:var(--blue);}
