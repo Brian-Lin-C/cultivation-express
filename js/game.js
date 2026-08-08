@@ -5,6 +5,8 @@
  *       + 境界试炼 + 配送史册 + 彩蛋 + 实时 UI
  * v2.1：门派悬赏 + 五星连击 + 事件冷却防重复 + 因果标记清理
  *       + 10 个新事件 + App 式视口布局 + buff 实时计时
+ * v2.2：配送神通（灵力/冷却）+ 路线选择 + 天机轮换 + 传奇分层
+ *       + 行为标签/人脉/流派接口预埋 + 决策密度统计
  * ========================================================= */
 (function () {
   'use strict';
@@ -30,6 +32,8 @@
       buffs: { speedUntil: 0, safeNext: 0 },
       flags: {},
       quests: [],
+      personality: { kindness: 0, adventure: 0, business: 0, cautious: 0 }, // v2.2 预埋：行为标签
+      relationships: {}, // v2.2 预埋：NPC 关系网（{ npcId: { level, trust, flags:[] } }）
       achievements: achievements || [],
       endings: endings || [],
       run: run || 1,
@@ -69,6 +73,8 @@
       S.arts = Object.assign({ shenfa: 0, hutu: 0, shenshi: 0, guixi: 0, dianjin: 0 }, data.s.arts);
       S.buffs = Object.assign({ speedUntil: 0, safeNext: 0 }, data.s.buffs);
       S.flags = data.s.flags || {};
+      S.personality = Object.assign({ kindness: 0, adventure: 0, business: 0, cautious: 0 }, data.s.personality);
+      S.relationships = data.s.relationships || {};
       META = Object.assign({ marks: 0, talents: {}, name: '', history: [] }, data.meta);
       META.talents = META.talents || {};
       META.history = Array.isArray(META.history) ? META.history : [];
@@ -127,6 +133,56 @@
   function dodgeChance() {
     return clamp(85 - 20 * (S.flags.dodges || 0) + 5 * (S.arts.shenshi - 1), 20, 90);
   }
+
+  /* ---------------- 天机（修仙历 · 每 8 小时轮换） ---------------- */
+  function weatherWindow() { return Math.floor(Date.now() / (8 * 3600 * 1000)); }
+  function currentWeather() {
+    var w = weatherWindow();
+    return DATA.WEATHERS[(w * 7 + 3) % DATA.WEATHERS.length];
+  }
+  function routeDef(id) {
+    return DATA.ROUTES.find(function (r) { return r.id === id; });
+  }
+  function routeStats(route) {
+    var w = currentWeather();
+    var m = (w.mods && w.mods[route.id]) || {};
+    return {
+      time: route.time * (m.time || 1),
+      event: route.event * (m.event || 1),
+      pay: route.pay * (m.pay || 1),
+      boosted: !!w.mods[route.id],
+    };
+  }
+  function skillCost(sk) {
+    if (sk.id === 'dunying' && currentWeather().id === 'mist') return Math.ceil(sk.cost / 2);
+    return sk.cost;
+  }
+
+  /* ---------------- 行为标签 / 流派（v2.2 预埋接口） ---------------- */
+  function bumpPersonality(key, n) {
+    if (!S.personality) S.personality = { kindness: 0, adventure: 0, business: 0, cautious: 0 };
+    S.personality[key] = (S.personality[key] || 0) + (n || 1);
+  }
+  function personalityTotal() {
+    var p = S.personality || {};
+    return (p.kindness || 0) + (p.adventure || 0) + (p.business || 0) + (p.cautious || 0);
+  }
+  function computeBuild() {
+    // 取功法最高的两门（均 ≥2 层）查流派表；人格冒险值高时偏好「天涯信使流」
+    var entries = Object.keys(S.arts).map(function (k) { return [k, S.arts[k]]; })
+      .sort(function (a, b) { return b[1] - a[1]; });
+    if (entries.length < 2 || entries[1][1] < 2) return null;
+    var pair = [entries[0][0], entries[1][0]];
+    var build = DATA.BUILDS.find(function (b) {
+      return pair.indexOf(b.need[0]) >= 0 && pair.indexOf(b.need[1]) >= 0;
+    });
+    if (build && (S.personality.adventure || 0) >= 15 && S.arts.shenfa >= 3) {
+      var alt = DATA.BUILDS.find(function (b) { return b.name === '天涯信使流'; });
+      if (alt) return alt;
+    }
+    return build || null;
+  }
+  function countDecision() { S.flags.decisions = (S.flags.decisions || 0) + 1; }
 
   /* ---------------- 门派悬赏（滚动任务） ---------------- */
   function questDef(id) {
@@ -336,13 +392,37 @@
   /* ---------------- 配送流程 ---------------- */
   function startOrder(id) {
     if (delivery) return;
+    var order = orders.find(function (o) { return o.id === id; });
+    if (!order) return;
+    var w = currentWeather();
+    var choices = DATA.ROUTES.map(function (route) {
+      var st = routeStats(route);
+      var est = Math.ceil(baseTime(order) * st.time / speed());
+      var risky = est > order.limit * timeMul();
+      return {
+        t: route.ico + ' ' + route.name + (st.boosted ? ' ✨' : ''),
+        hint: route.desc + ' 预计 ' + est + 's' + (risky ? '（可能超时！）' : '') +
+          ' · 事件密度 ×' + st.event.toFixed(1) + ' · 报酬 ×' + st.pay.toFixed(2),
+        run: function () { closeModal(); beginDelivery(id, route.id); },
+      };
+    });
+    choices.push({ t: '再想想', hint: '不着急，货比三家', run: closeModal });
+    openModal('🗺️ 择路而行', '给「' + order.customer + '」送「' + order.food + '」（' + DATA.AREAS[order.area].name + '，时限 ' + Math.ceil(order.limit * timeMul()) + 's）\n\n当前天机：' + w.ico + ' ' + w.name + '——' + w.desc, choices);
+  }
+
+  function beginDelivery(id, routeId) {
+    if (delivery) return;
     var idx = orders.findIndex(function (o) { return o.id === id; });
     if (idx < 0) return;
     var order = orders.splice(idx, 1)[0];
     order.limit = Math.ceil(order.limit * timeMul());
+    var route = routeDef(routeId) || DATA.ROUTES[0];
+    var st = routeStats(route);
+    order.pay = Math.max(1, Math.round(order.pay * st.pay));
 
-    var expect = baseTime(order) / speed();
-    var nEvt = order.area <= 1 ? rnd(0, 1) : order.area <= 2 ? rnd(1, 2) : rnd(1, 3);
+    var expect = baseTime(order) * st.time / speed();
+    var baseEvt = order.area <= 1 ? rnd(0, 1) : order.area <= 2 ? rnd(1, 2) : rnd(1, 3);
+    var nEvt = clamp(Math.round(baseEvt * st.event), 0, 4);
     var fracs = [];
     for (var i = 0; i < nEvt; i++) fracs.push(0.18 + Math.random() * 0.64);
     fracs.sort(function (a, b) { return a - b; });
@@ -352,6 +432,7 @@
 
     delivery = {
       order: order,
+      route: route.id,
       start: Date.now(),
       paused: 0,
       pauseStart: 0,
@@ -361,10 +442,17 @@
       fired: 0,
       eventHurtMul: 1 - 0.2 * S.box.seal,
       safeMode: safeMode,
+      mana: 100,
+      cds: {},
+      yufengUntil: 0,
+      shield: false,
+      stealth: false,
     };
     S.meditating = false;
+    bumpPersonality(route.pers, 1);
+    countDecision();
 
-    log('📦 接单：给' + order.customer + '送「' + order.food + '」（' + DATA.AREAS[order.area].name + '，时限 ' + order.limit + 's）', 'l-evt');
+    log('📦 接单：给' + order.customer + '送「' + order.food + '」（' + DATA.AREAS[order.area].name + ' · ' + route.name + '，时限 ' + order.limit + 's）', 'l-evt');
     if (safeMode) log('🛡️ 平安符生效：本单餐品零损耗。', 'l-good');
     refillOrders();
     render();
@@ -380,7 +468,8 @@
     if (res.di !== undefined && d) {
       var di = res.di;
       if (di < 0) {
-        if (d.safeMode) { di = 0; res.log = (res.log || '') + '（平安符挡下了餐损）'; }
+        if (d.shield) { d.shield = false; di = 0; res.log = (res.log || '') + '（镇食诀挡下了餐损）'; }
+        else if (d.safeMode) { di = 0; res.log = (res.log || '') + '（平安符挡下了餐损）'; }
         else di = Math.round(di * (d.eventHurtMul || 1) * (1 - 0.15 * S.arts.hutu));
       }
       d.integrity = clamp(d.integrity + di, 0, 100);
@@ -440,6 +529,30 @@
     }
     recent.push(evt.id);
     S.flags.recentEvents = recent.slice(-4);
+
+    // 遁影诀：变故化为「暗中观察」——不参与事件本身，因果标记也不消耗
+    if (d.stealth) {
+      d.stealth = false;
+      countDecision();
+      openModal('🫥 暗中观察',
+        '你隐去身形，远远望见前方——「' + evt.title + '」。\n' + evt.text,
+        [
+          { t: '悄悄绕开', hint: '耗时 +3s · 安然无恙', run: function () {
+            eff({ dt: 3, log: '你隐在暗处等风波平息，悄然绕开了「' + evt.title + '」。', cls: 'l-sys' });
+            closeModal(); save(); render();
+          } },
+          { t: '伺机而动', hint: '赌一把 · 或有旁观者红利', run: function () {
+            var r = Math.random();
+            if (r < 0.4) eff({ ds: rnd(15, 35), log: '你趁乱摸到些好处——「' + evt.title + '」的旁观者红利。', cls: 'l-gold' });
+            else if (r < 0.7) eff({ dr: 3, log: '你静观风波起落，道心微有领悟。', cls: 'l-good' });
+            else eff({ di: -5, log: '你被发现了！仓促脱身，餐箱晃了一下。', cls: 'l-bad' });
+            closeModal(); checkAchievements(); save(); render();
+          } },
+        ]);
+      log('🫥 遁影诀生效：你暗中观察了「' + evt.title + '」。', 'l-evt');
+      return;
+    }
+
     // 因果链事件触发一次后清除标记，不会反复刷出
     if (evt.flag) S.flags[evt.flag] = 0;
 
@@ -449,6 +562,7 @@
         return {
           t: ch.t, hint: ch.hint,
           run: function () {
+            countDecision();
             if (ch.outs) rollOutcome(ch, ctx);
             else if (ch.run) { var res = ch.run(ctx); if (res) eff(res); }
             closeModal();
@@ -584,19 +698,38 @@
       log('⚔️ 试炼失败……接引者摇了摇头。试炼单会再次出现，备好状态再来。', 'l-bad');
     }
 
-    // 彩蛋（0.6%）
-    if (Math.random() < 0.006) {
+    // 传奇事件（分层 · 命格修正：气运/功德/人格越厚，概率越高）
+    var fateP = Math.min(0.003, 0.0001 * (1 + S.luck / 50 + S.merit / 500 + personalityTotal() / 100));
+    var legendP = 0.001 * (1 + S.luck / 100);
+    var wonderP = 0.01 * (1 + S.luck / 200);
+    var roll = Math.random();
+    if (roll < fateP) {
+      META.marks++;
+      log('🌟🌟🌟 天命订单！你送的这一单，改变了修仙界的历史——天道降下金旨：永久天赋印记 +1！', 'l-gold');
+      toast('🌟 天命订单 · 天道印记 +1');
+      pushHistory('🌟 天命订单：天道印记 +1（第 ' + S.run + ' 世）');
+      unlockAch('fate1');
+    } else if (roll < fateP + legendP) {
+      if (Math.random() < 0.5) {
+        S.stones += 500;
+        log('✨ 小传奇！客人竟是微服的长老，一出手就是 500 灵石打赏！', 'l-gold');
+      } else {
+        S.merit += 50;
+        log('✨ 小传奇！你的善举被路过的游仙记入《功德异闻录》：功德 +50！', 'l-gold');
+      }
+      pushHistory('✨ 小传奇降临');
+    } else if (roll < fateP + legendP + wonderP) {
       var egg = Math.random();
       if (egg < 0.4) {
         S.exp += 100; S.merit += 30;
-        log('🥚 彩蛋！餐箱夹层里掉出一页《配送真经》，你顿悟了：经验 +100，功德 +30！', 'l-gold');
+        log('🥚 奇遇！餐箱夹层里掉出一页《配送真经》，你顿悟了：经验 +100，功德 +30！', 'l-gold');
       } else if (egg < 0.75) {
         S.stones += 200;
-        log('🥚 彩蛋！天降灵石雨，你张开餐箱接了满满一箱：灵石 +200！', 'l-gold');
+        log('🥚 奇遇！天降灵石雨，你张开餐箱接了满满一箱：灵石 +200！', 'l-gold');
       } else {
         S.luck = clamp(S.luck + 10, 0, 100);
         S.resolve = clamp(S.resolve + 20, 0, 100);
-        log('🥚 彩蛋！一道七彩霞光落在你头顶：气运 +10，道心 +20！', 'l-gold');
+        log('🥚 奇遇！一道七彩霞光落在你头顶：气运 +10，道心 +20！', 'l-gold');
       }
     }
 
@@ -978,7 +1111,7 @@
 
   function renderBanner() {
     var b = $('#banner');
-    if (!delivery) { b.classList.add('hidden'); return; }
+    if (!delivery) { b.classList.add('hidden'); renderSkills(); return; }
     b.classList.remove('hidden');
     var o = delivery.order;
     var el = elapsed(delivery);
@@ -994,6 +1127,7 @@
     var t = $('#txtTime');
     t.textContent = left >= 0 ? '剩 ' + left + 's' : '超时 ' + (-left) + 's';
     t.className = 'bar-num' + (left < 0 ? ' late' : '');
+    renderSkills();
   }
 
   function buffLine() {
@@ -1009,6 +1143,62 @@
     var html = buffLine();
     if (html) { bar.innerHTML = html; bar.classList.remove('hidden'); }
     else { bar.innerHTML = ''; bar.classList.add('hidden'); }
+  }
+
+  /* ---------------- 配送神通 ---------------- */
+  var lastSkillsHtml = null;
+  function castSkill(id) {
+    var d = delivery;
+    if (!d) return;
+    var sk = DATA.SKILLS.find(function (x) { return x.id === id; });
+    if (!sk) return;
+    var now = Date.now();
+    var cost = skillCost(sk);
+    var cdLeft = d.cds[id] ? Math.ceil((d.cds[id] - now) / 1000) : 0;
+    if (cdLeft > 0) { toast(sk.name + '尚在调息（剩 ' + cdLeft + 's）'); return; }
+    if (d.mana < cost) { toast('灵力不足（需 ' + cost + '）'); return; }
+    d.mana -= cost;
+    d.cds[id] = now + sk.cd * 1000;
+    countDecision();
+    if (id === 'yufeng') {
+      d.yufengUntil = now + sk.dur * 1000;
+      log('🌀 御风诀！你足下生风，身法陡然加快（' + sk.dur + 's 速度 ×1.8）。', 'l-good');
+    } else if (id === 'zhenshi') {
+      d.shield = true;
+      log('🛡️ 镇食诀！一层微光裹住餐箱：下一次餐损免疫。', 'l-good');
+    } else if (id === 'dunying') {
+      d.stealth = true;
+      log('🫥 遁影诀！你身形淡去——下一个变故将被暗中观察。', 'l-good');
+    }
+    renderSkills(true);
+  }
+  function renderSkills(force) {
+    var box = $('#skills');
+    if (!box) return;
+    if (!delivery) {
+      if (lastSkillsHtml !== '') { box.innerHTML = ''; box.classList.add('hidden'); lastSkillsHtml = ''; }
+      return;
+    }
+    var d = delivery, now = Date.now();
+    var html = '<div class="mana-row">🌀 灵力 <b>' + Math.floor(d.mana) + '</b>/100</div>';
+    DATA.SKILLS.forEach(function (sk) {
+      var cost = skillCost(sk);
+      var cdLeft = d.cds[sk.id] ? Math.ceil((d.cds[sk.id] - now) / 1000) : 0;
+      var active = (sk.id === 'yufeng' && now < d.yufengUntil) ||
+                   (sk.id === 'zhenshi' && d.shield) ||
+                   (sk.id === 'dunying' && d.stealth);
+      var dis = d.mana < cost || cdLeft > 0 || !!active;
+      html += '<button class="skill-btn' + (active ? ' active' : '') + '" data-skill="' + sk.id + '"' +
+        (dis ? ' disabled' : '') + ' title="' + esc(sk.desc) + '">' +
+        sk.ico + ' ' + sk.name +
+        (active ? '·生效中' : cdLeft > 0 ? '（' + cdLeft + 's）' : '<span class="mana-cost">' + cost + '</span>') +
+        '</button>';
+    });
+    if (force || html !== lastSkillsHtml) {
+      box.innerHTML = html;
+      box.classList.remove('hidden');
+      lastSkillsHtml = html;
+    }
   }
 
   function questHtml() {
@@ -1038,6 +1228,9 @@
       html += '<div class="order special"><div class="o-body">🌙 魔尊给你留了言：「今夜，再来一趟。本尊有话对你说。」</div></div>';
     }
     html += questHtml();
+    var cw = currentWeather();
+    html = '<div class="order weather"><div class="o-head"><span class="o-name">🌌 天机：' + cw.ico + ' ' + cw.name + '</span>' +
+      '<span class="o-area">8 小时一换</span></div><div class="o-body small">' + cw.desc + '</div></div>' + html;
     orders.forEach(function (o) {
       var est = Math.ceil(baseTime(o) / speed());
       var risky = est > o.limit;
@@ -1191,7 +1384,28 @@
 
   function renderCodex() {
     var pane = $('#pane-codex');
-    var html = '<div class="sec-title">成就（' + S.achievements.length + '/' + DATA.ACHIEVEMENTS.length + '）' +
+    var html = '';
+
+    // 流派称号（功法组合 + 人格自动生成）
+    var build = computeBuild();
+    html += '<div class="sec-title">流派</div>';
+    if (build) {
+      html += '<div class="ach done"><div class="a-ico">🥋</div><div><div class="a-name">' + build.name + '</div>' +
+        '<div class="a-desc">' + build.desc + '</div></div></div>';
+    } else {
+      html += '<div class="muted small">尚无流派——任意两门功法修至 2 层，自会悟出你的流派。人格与习惯会让它独一无二。</div>';
+    }
+    var p = S.personality || {};
+    if (personalityTotal() > 0) {
+      html += '<div class="muted small center">性情：仁善 ' + (p.kindness || 0) + ' · 冒险 ' + (p.adventure || 0) +
+        ' · 精明 ' + (p.business || 0) + ' · 谨慎 ' + (p.cautious || 0) + '</div>';
+    }
+    var playMin = (S.flags.playSecs || 0) / 60;
+    if (playMin >= 1) {
+      html += '<div class="muted small center">本世决策密度：' + ((S.flags.decisions || 0) / playMin).toFixed(1) + ' 次/分（' + (S.flags.decisions || 0) + ' 次决策）</div>';
+    }
+
+    html += '<div class="sec-title">成就（' + S.achievements.length + '/' + DATA.ACHIEVEMENTS.length + '）' +
       '<span class="muted small"> · 每个成就永久 +2% 报酬</span></div>';
     DATA.ACHIEVEMENTS.forEach(function (a) {
       var done = S.achievements.indexOf(a.id) >= 0;
@@ -1256,8 +1470,8 @@
       '<div class="sec-title">危险区</div>' +
       '<div class="row-btns"><button class="btn danger" id="btnReset">🗑️ 删除存档重新开始</button></div>' +
       '<div class="sec-title">关于</div>' +
-      '<div class="muted small">《我在修仙界送外卖》v2.1 · 纯文字单机小游戏 · 无外链资源 · 无声音<br>' +
-      '题材：修仙 × 外卖 · 玩法：接单配送 + 随机事件 + 因果链 + 门派悬赏 + 经营养成 + 轮回天赋 + 多结局</div>';
+      '<div class="muted small">《我在修仙界送外卖》v2.2 · 纯文字单机小游戏 · 无外链资源 · 无声音<br>' +
+      '题材：修仙 × 外卖 · 玩法：择路配送 + 神通操作 + 随机事件 + 因果链 + 门派悬赏 + 经营养成 + 轮回天赋 + 多结局</div>';
   }
 
   function render() {
@@ -1280,11 +1494,15 @@
     lastTick = now;
 
     if (delivery) {
+      // 灵力回复（弹窗时也回复）
+      delivery.mana = clamp(delivery.mana + 4 * dt, 0, 100);
       if (!modalOpen) {
         var d = delivery;
         if (!d.safeMode) {
           d.integrity = clamp(d.integrity - 0.22 * dt * (1 - 0.25 * S.box.warm), 0, 100);
         }
+        // 御风诀生效中：进度按 ×1.8 推进
+        if (now < d.yufengUntil) d.start -= dt * 0.8 * 1000;
         var prog = elapsed(d) / d.expect;
         if (d.fired < d.events.length && prog >= d.events[d.fired]) {
           d.fired++;
@@ -1335,6 +1553,16 @@
 
     // 宿敌：分数自然增长 + 传闻
     S.flags.rivalScore = (S.flags.rivalScore || 0) + dt * (3 + level()) / 60;
+    S.flags.playSecs = (S.flags.playSecs || 0) + dt;
+
+    // 天机轮换检测（修仙历 · 8 小时一时辰）
+    var ww = weatherWindow();
+    if (S.flags.weatherWindow !== ww) {
+      S.flags.weatherWindow = ww;
+      var cw = currentWeather();
+      log('🌌 天机流转：' + cw.ico + ' ' + cw.name + '——' + cw.desc, 'l-evt');
+      if (activeTab === 'orders' && !delivery && !modalOpen) renderOrders();
+    }
     if (now >= rivalLineAt && !modalOpen) {
       rivalLineAt = now + rnd(200, 400) * 1000;
       log('📰 ' + pick(DATA.RIVAL.lines), 'l-sys');
@@ -1356,7 +1584,7 @@
 
   /* ---------------- 事件绑定 ---------------- */
   document.addEventListener('click', function (ev) {
-    var t = ev.target.closest('[data-accept],[data-mount],[data-box],[data-art],[data-ending],[data-rider],[data-dispatch],[data-talent],#btnReroll,#btnMeditate,#btnExport,#btnImport,#btnReset,#btnRename,.tab');
+    var t = ev.target.closest('[data-accept],[data-skill],[data-mount],[data-box],[data-art],[data-ending],[data-rider],[data-dispatch],[data-talent],#btnReroll,#btnMeditate,#btnExport,#btnImport,#btnReset,#btnRename,.tab');
     if (!t) return;
 
     if (t.classList.contains('tab')) {
@@ -1367,6 +1595,7 @@
       return;
     }
     if (t.dataset.accept) { startOrder(t.dataset.accept); return; }
+    if (t.dataset.skill) { castSkill(t.dataset.skill); return; }
     if (t.dataset.mount) { buyMount(parseInt(t.dataset.mount, 10)); return; }
     if (t.dataset.box) { buyBox(t.dataset.box); return; }
     if (t.dataset.art) { buyArt(t.dataset.art); return; }
@@ -1416,6 +1645,8 @@
           S.arts = Object.assign({ shenfa: 0, hutu: 0, shenshi: 0, guixi: 0, dianjin: 0 }, data.s.arts);
           S.buffs = Object.assign({ speedUntil: 0, safeNext: 0 }, data.s.buffs);
           S.flags = data.s.flags || {};
+          S.personality = Object.assign({ kindness: 0, adventure: 0, business: 0, cautious: 0 }, data.s.personality);
+          S.relationships = data.s.relationships || {};
           META = Object.assign({ marks: 0, talents: {}, name: '', history: [] }, data.meta);
           META.talents = META.talents || {};
           META.history = Array.isArray(META.history) ? META.history : [];

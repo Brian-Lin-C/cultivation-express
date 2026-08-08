@@ -127,6 +127,28 @@ const qKeys = new Set();
   qKeys.add(q.key);
 });
 
+// 4d) v2.2：神通 / 路线 / 天机 / 流派
+ok(Array.isArray(DATA.SKILLS) && DATA.SKILLS.length === 3, 'SKILLS 应为 3');
+DATA.SKILLS.forEach((sk, i) => {
+  ok(sk.id && sk.name && sk.cost > 0 && sk.cd > 0, `SKILLS[${i}] 字段异常`);
+});
+ok(Array.isArray(DATA.ROUTES) && DATA.ROUTES.length === 3, 'ROUTES 应为 3');
+DATA.ROUTES.forEach((r, i) => {
+  ok(r.id && r.name && r.time > 0 && r.event > 0 && r.pay > 0, `ROUTES[${i}] 数值异常`);
+  ok(['kindness', 'adventure', 'business', 'cautious'].includes(r.pers), `ROUTES[${i}].pers 非法: ${r.pers}`);
+});
+ok(Array.isArray(DATA.WEATHERS) && DATA.WEATHERS.length === 4, 'WEATHERS 应为 4');
+DATA.WEATHERS.forEach((w, i) => {
+  ok(w.id && w.name && w.desc && w.mods, `WEATHERS[${i}] 字段缺失`);
+  Object.keys(w.mods).forEach(rid => {
+    ok(DATA.ROUTES.some(r => r.id === rid), `WEATHERS[${w.id}].mods 引用了不存在的路线: ${rid}`);
+  });
+});
+ok(Array.isArray(DATA.BUILDS) && DATA.BUILDS.length >= 5, 'BUILDS 数量不足');
+DATA.BUILDS.forEach((b, i) => {
+  ok(Array.isArray(b.need) && b.need.length === 2 && b.name && b.desc, `BUILDS[${i}] 字段异常`);
+});
+
 // 5) 因果链 flag 有产出方（set 在前置事件中）与触发方（cond 引用）
 const src = dataSrc;
 ['sparedRobber', 'fedCrane', 'offendedDemon', 'metOldman'].forEach(flag => {
@@ -155,7 +177,8 @@ console.log(`DATA_OK events=${events.length} totalOuts=${totalOuts} talents=${DA
 const gameSrc = fs.readFileSync(path.join(__dirname, 'js', 'game.js'), 'utf8');
 // 引擎引用的关键函数/特征存在性
 ['rollOutcome', 'dodgeChance', 'makeTrialOrder', 'promptName', 'pushHistory', 'renderBanner', 'pendingGate', 'rawLevel',
- 'renderBuffs', 'questProgress', 'ensureQuests', 'recentEvents', 'questHtml'].forEach(fn => {
+ 'renderBuffs', 'questProgress', 'ensureQuests', 'recentEvents', 'questHtml',
+ 'beginDelivery', 'castSkill', 'renderSkills', 'currentWeather', 'routeStats', 'computeBuild', 'bumpPersonality', 'countDecision', 'skillCost'].forEach(fn => {
   if (!gameSrc.includes(fn)) { console.log('GAME_MISSING: ' + fn); process.exit(1); }
 });
 try {

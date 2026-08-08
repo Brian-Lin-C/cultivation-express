@@ -680,6 +680,55 @@ const DATA = {
     { id: 'q_meditate', name: '吐纳养生',   desc: '打坐静修 5 次',              key: 'meditate', target: 5, reward: { ds: 30,  dm: 10, dr: 5 } },
   ],
 
+  /* ---------- 配送神通（v2.2 · 配送中主动操作，消耗灵力，有冷却） ---------- */
+  SKILLS: [
+    { id: 'yufeng',  ico: '🌀', name: '御风诀', cost: 25, cd: 15, dur: 5,
+      desc: '5 秒内速度 ×1.8。快超时时的一搏。' },
+    { id: 'zhenshi', ico: '🛡️', name: '镇食诀', cost: 30, cd: 30,
+      desc: '镇住餐箱：挡下一次餐品损失（挂身直到被消耗）。保五星连击的关键。' },
+    { id: 'dunying', ico: '🫥', name: '遁影诀', cost: 35, cd: 45,
+      desc: '隐去身形：下一个变故化为「暗中观察」——不参与，但可伺机取利。迷雾天消耗减半。' },
+  ],
+
+  /* ---------- 配送路线（v2.2 · 接单后选择，数值受天机影响） ---------- */
+  ROUTES: [
+    { id: 'road',   ico: '🛤️', name: '官道',     tag: 'safe',
+      desc: '平稳大道，风波最少。',
+      time: 1, event: 0.7, pay: 1, pers: 'cautious' },
+    { id: 'trail',  ico: '⛰️', name: '灵兽山径', tag: 'wild',
+      desc: '山间近路，快两成，偶有灵兽灵草。',
+      time: 0.85, event: 1.2, pay: 1.1, pers: 'adventure' },
+    { id: 'canyon', ico: '🌋', name: '魔修峡谷', tag: 'danger',
+      desc: '凶险近路，快三成，报酬 +25%。',
+      time: 0.7, event: 1.5, pay: 1.25, pers: 'adventure' },
+  ],
+
+  /* ---------- 天机（v2.2 · 修仙历，每 8 小时轮换，影响路线数值） ---------- */
+  WEATHERS: [
+    { id: 'clear', ico: '☀️', name: '天朗气清', desc: '天光正好，全路线耗时 -10%。',
+      mods: { road: { time: 0.9 }, trail: { time: 0.9 }, canyon: { time: 0.9 } } },
+    { id: 'storm', ico: '⛈️', name: '雷雨', desc: '山径泥泞耗时 +30%；雷雨淬体，全路线报酬 +10%。',
+      mods: { road: { pay: 1.1 }, trail: { time: 1.3, pay: 1.1 }, canyon: { pay: 1.1 } } },
+    { id: 'beast', ico: '🐗', name: '妖兽暴动', desc: '山径峡谷事件增多 +30%，峡谷报酬再 +20%。',
+      mods: { trail: { event: 1.3 }, canyon: { event: 1.3, pay: 1.2 } } },
+    { id: 'mist',  ico: '🌫️', name: '迷雾锁山', desc: '事件增多 +20%，但遁影诀消耗减半。',
+      mods: { road: { event: 1.2 }, trail: { event: 1.2 }, canyon: { event: 1.2 } } },
+  ],
+
+  /* ---------- 流派（v2.2 预埋接口：功法组合 + 人格自动生成称号） ---------- */
+  BUILDS: [
+    { need: ['shenfa', 'shenshi'], name: '风行剑送流', desc: '身法配灵眸：来去如风，算无遗策。' },
+    { need: ['dianjin', 'guixi'],  name: '因果商人流', desc: '点金配龟息：小费翻倍，时限宽裕，闷声发财。' },
+    { need: ['hutu', 'shenfa'],    name: '铁壁快送流', desc: '护体配身法：又快又稳，餐箱纹丝不动。' },
+    { need: ['shenfa', 'guixi'],   name: '天涯信使流', desc: '身法配龟息：千里转瞬，使命必达。' },
+    { need: ['shenshi', 'hutu'],   name: '金瞳铁壁流', desc: '灵眸配护体：看破凶险，四平八稳。' },
+    { need: ['dianjin', 'shenfa'], name: '赏金急脚流', desc: '点金配身法：快送快赚，赏金猎人。' },
+    { need: ['guixi', 'hutu'],     name: '不动明王流', desc: '龟息配护体：稳如泰山，细水长流。' },
+    { need: ['shenshi', 'dianjin'], name: '慧眼识珠流', desc: '灵眸配点金：专挑肥单，逢凶化吉。' },
+    { need: ['shenfa', 'dianjin'], name: '追风赏金流', desc: '身法配点金：速度与贪婪并存。' },
+    { need: ['guixi', 'shenshi'],  name: '洞玄静观流', desc: '龟息配灵眸：以静制动，后发先至。' },
+  ],
+
   /* ---------- 灵蝶 · 天降机缘（变率奖励） ---------- */
   BUTTERFLY: {
     minGap: 45,
@@ -737,6 +786,7 @@ const DATA = {
     { id: 'trialpass', ico: '⚔️', name: '持证上岗',   desc: '完成一次境界试炼' },
     { id: 'quest10',   ico: '📜', name: '悬赏猎人',   desc: '完成 10 张门派悬赏' },
     { id: 'heat5',     ico: '🔥', name: '手感滚烫',   desc: '达成五星五连击' },
+    { id: 'fate1',     ico: '🌟', name: '天命所归',   desc: '触发一次天命订单' },
   ],
 
   /* ---------- 结局 ---------- */
