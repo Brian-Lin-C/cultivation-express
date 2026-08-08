@@ -149,6 +149,32 @@ DATA.BUILDS.forEach((b, i) => {
   ok(Array.isArray(b.need) && b.need.length === 2 && b.name && b.desc, `BUILDS[${i}] 字段异常`);
 });
 
+// 4e) v2.3：NPC 人脉 / 失败剧情 / 事件标注
+ok(Array.isArray(DATA.NPCS) && DATA.NPCS.length >= 4, 'NPCS 数量不足');
+DATA.NPCS.forEach((n, i) => {
+  ok(n.id && n.name && n.title && Array.isArray(n.tiers) && Array.isArray(n.perks), `NPCS[${i}] 字段缺失`);
+  ok(n.tiers.length === n.perks.length, `NPCS[${n.id}] tiers 与 perks 数量不一致`);
+});
+ok(Array.isArray(DATA.FAILURES) && DATA.FAILURES.length >= 5, 'FAILURES 数量不足');
+DATA.FAILURES.forEach((f, i) => {
+  ok(f.id && (f.when === 'late' || f.when === 'bad') && f.title && f.text, `FAILURES[${i}] 字段缺失`);
+  ok(f.w > 0, `FAILURES[${i}] 权重非正`);
+  ok(f.res || (Array.isArray(f.choices) && f.choices.length >= 1), `FAILURES[${i}] 无结果`);
+});
+// 事件标注覆盖：tags/intel/pers
+const withIntel = events.filter(e => e.intel).length;
+const withTags = events.filter(e => e.tags).length;
+let withPers = 0;
+events.forEach(e => e.choices.forEach(c => { if (c.pers) withPers++; }));
+ok(withIntel >= 15, `intel 事件应 ≥15，实际 ${withIntel}`);
+ok(withTags >= 15, `tags 事件应 ≥15，实际 ${withTags}`);
+ok(withPers >= 25, `pers 选择应 ≥25，实际 ${withPers}`);
+// pers 值合法
+const PERS_KEYS = ['kindness', 'adventure', 'business', 'cautious'];
+events.forEach(e => e.choices.forEach(c => {
+  if (c.pers) ok(PERS_KEYS.includes(c.pers), `${e.id} 选择「${c.t}」pers 非法: ${c.pers}`);
+}));
+
 // 5) 因果链 flag 有产出方（set 在前置事件中）与触发方（cond 引用）
 const src = dataSrc;
 ['sparedRobber', 'fedCrane', 'offendedDemon', 'metOldman'].forEach(flag => {
@@ -178,7 +204,8 @@ const gameSrc = fs.readFileSync(path.join(__dirname, 'js', 'game.js'), 'utf8');
 // 引擎引用的关键函数/特征存在性
 ['rollOutcome', 'dodgeChance', 'makeTrialOrder', 'promptName', 'pushHistory', 'renderBanner', 'pendingGate', 'rawLevel',
  'renderBuffs', 'questProgress', 'ensureQuests', 'recentEvents', 'questHtml',
- 'beginDelivery', 'castSkill', 'renderSkills', 'currentWeather', 'routeStats', 'computeBuild', 'bumpPersonality', 'countDecision', 'skillCost'].forEach(fn => {
+ 'beginDelivery', 'castSkill', 'renderSkills', 'currentWeather', 'routeStats', 'computeBuild', 'bumpPersonality', 'countDecision', 'skillCost',
+ 'gainTrust', 'relOf', 'npcLevel', 'pickFailureStory', 'showFailureStory', 'persFactor'].forEach(fn => {
   if (!gameSrc.includes(fn)) { console.log('GAME_MISSING: ' + fn); process.exit(1); }
 });
 try {

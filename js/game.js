@@ -7,6 +7,7 @@
  *       + 10 个新事件 + App 式视口布局 + buff 实时计时
  * v2.2：配送神通（灵力/冷却）+ 路线选择 + 天机轮换 + 传奇分层
  *       + 行为标签/人脉/流派接口预埋 + 决策密度统计
+ * v2.3：情报型事件（灵眸揭示）+ 人格影响事件池 + 失败剧情 + NPC 人脉基础版
  * ========================================================= */
 (function () {
   'use strict';
@@ -146,9 +147,12 @@
   function routeStats(route) {
     var w = currentWeather();
     var m = (w.mods && w.mods[route.id]) || {};
+    var evtMul = route.event * (m.event || 1);
+    // 铁牛护航：结识后魔修峡谷事件密度 -30%
+    if (route.id === 'canyon' && relOf('biao').trust >= 1) evtMul *= 0.7;
     return {
       time: route.time * (m.time || 1),
-      event: route.event * (m.event || 1),
+      event: evtMul,
       pay: route.pay * (m.pay || 1),
       boosted: !!w.mods[route.id],
     };
@@ -183,6 +187,33 @@
     return build || null;
   }
   function countDecision() { S.flags.decisions = (S.flags.decisions || 0) + 1; }
+
+  /* ---------------- NPC 人脉 ---------------- */
+  function npcDef(id) { return DATA.NPCS.find(function (n) { return n.id === id; }); }
+  function relOf(id) { return S.relationships[id] || { trust: 0 }; }
+  function npcLevel(npc, trust) {
+    var lv = 0;
+    npc.tiers.forEach(function (t) { if (trust >= t) lv++; });
+    return lv;
+  }
+  function gainTrust(id, n) {
+    var npc = npcDef(id);
+    if (!npc) return;
+    var rel = S.relationships[id] || { trust: 0 };
+    var before = npcLevel(npc, rel.trust);
+    rel.trust = Math.max(0, rel.trust + n);
+    S.relationships[id] = rel;
+    var after = npcLevel(npc, rel.trust);
+    if (after > before) {
+      log('🤝 ' + npc.name + '（' + npc.title + '）好感升至 ' + rel.trust + '：' + npc.perks[after - 1], 'l-gold');
+      toast('🤝 ' + npc.name + ' 关系升温');
+      pushHistory('🤝 与' + npc.name + '的关系更进一步（好感 ' + rel.trust + '）');
+      if (id === 'pill' && after >= 1) {
+        S.flags.pillBuff = (S.flags.pillBuff || 0) + 1;
+        log('💊 温九塞给你一枚回春丹：下一单餐损减半。', 'l-gold');
+      }
+    }
+  }
 
   /* ---------------- 门派悬赏（滚动任务） ---------------- */
   function questDef(id) {
@@ -333,9 +364,21 @@
     if (forceSpecial) sp = forceSpecial;
 
     var customer;
+    var npcId = null;
+    if (!sp && Math.random() < 0.06) {
+      // 招牌 NPC 亲自下单
+      var cands = DATA.NPCS.filter(function (n) {
+        return (n.id === 'sword' || n.id === 'pill') && DATA.AREAS[n.area].lv <= lv;
+      });
+      if (cands.length) {
+        var npc = pick(cands);
+        customer = npc.name;
+        npcId = npc.id;
+      }
+    }
     if (sp && sp.customer) {
       customer = sp.customer;
-    } else {
+    } else if (!customer) {
       var pool = [];
       DATA.CUSTOMERS.forEach(function (row, idx) {
         if (idx === areaIdx) for (var k = 1; k < row.length; k++) pool.push(row[k]);
@@ -349,6 +392,12 @@
     var rg = regulars()[customer];
     var isRegular = !!(rg && rg.good >= 3);
     if (isRegular) pay *= 1.3;
+    // 剑修急单：沈孤鸿好感 3+ 后他的单报酬 ×1.8、时限 ×0.8
+    var swordRush = npcId === 'sword' && relOf('sword').trust >= 3;
+    if (swordRush) {
+      pay *= 1.8;
+      limit = Math.ceil(limit * 0.8);
+    }
 
     return {
       id: Date.now() + '_' + Math.random().toString(36).slice(2, 7),
@@ -358,8 +407,9 @@
       pay: Math.round(pay),
       limit: limit,
       special: sp ? sp.id : null,
+      npc: npcId,
       regular: isRegular,
-      note: sp ? sp.note : (isRegular ? '❤️ 熟客单：报酬 +30%，送达必有小费。' : null),
+      note: sp ? sp.note : (swordRush ? '🗡️ 剑修急单：报酬 ×1.8，时限更紧，师兄等着练剑前用膳。' : npcId ? '🤝 招牌人物的单：好评可提升你们的关系。' : isRegular ? '❤️ 熟客单：报酬 +30%，送达必有小费。' : null),
     };
   }
 
@@ -429,6 +479,8 @@
 
     var safeMode = S.buffs.safeNext > 0;
     S.buffs.safeNext = 0;
+    var pill = (S.flags.pillBuff || 0) > 0;
+    if (pill) S.flags.pillBuff--;
 
     delivery = {
       order: order,
@@ -440,8 +492,9 @@
       integrity: 100,
       events: fracs,
       fired: 0,
-      eventHurtMul: 1 - 0.2 * S.box.seal,
+      eventHurtMul: (1 - 0.2 * S.box.seal) * (pill ? 0.5 : 1),
       safeMode: safeMode,
+      pill: pill,
       mana: 100,
       cds: {},
       yufengUntil: 0,
@@ -454,6 +507,7 @@
 
     log('📦 接单：给' + order.customer + '送「' + order.food + '」（' + DATA.AREAS[order.area].name + ' · ' + route.name + '，时限 ' + order.limit + 's）', 'l-evt');
     if (safeMode) log('🛡️ 平安符生效：本单餐品零损耗。', 'l-good');
+    if (pill) log('💊 回春丹的温气护住餐箱：本单餐损减半（存 ' + (S.flags.pillBuff || 0) + ' 枚）。', 'l-good');
     refillOrders();
     render();
   }
@@ -515,16 +569,30 @@
     S.__lv = level();
     var ctx = { s: S, order: d.order, eff: eff };
     var recent = S.flags.recentEvents || [];
+    var p = S.personality || {};
+    // 人格偏移：善良者多遇求助，精明者多遇商机，冒险者多遇险境——世界开始认识你
+    function persFactor(e) {
+      if (!e.tags) return 1;
+      var f = 1;
+      e.tags.forEach(function (tag) {
+        if (tag === 'kind') f *= 1 + 0.03 * (p.kindness || 0);
+        else if (tag === 'biz') f *= 1 + 0.03 * (p.business || 0);
+        else if (tag === 'danger') f *= 1 + 0.03 * (p.adventure || 0);
+        else if (tag === 'wild') f *= 1 + 0.015 * (p.adventure || 0);
+      });
+      return Math.min(f, 2);
+    }
+    function evtWeight(e) {
+      return e.w * (recent.indexOf(e.id) >= 0 ? 0.15 : 1) * persFactor(e);
+    }
     var pool = DATA.EVENTS.filter(function (e) {
       return e.areas.indexOf(d.order.area) >= 0 && (!e.cond || e.cond(ctx));
     });
     // 事件冷却：最近 4 个出现过的事件降权，避免连续重复
-    var totalW = pool.reduce(function (a, e) {
-      return a + e.w * (recent.indexOf(e.id) >= 0 ? 0.15 : 1);
-    }, 0);
+    var totalW = pool.reduce(function (a, e) { return a + evtWeight(e); }, 0);
     var r = Math.random() * totalW, evt = pool[0];
     for (var i = 0; i < pool.length; i++) {
-      r -= pool[i].w * (recent.indexOf(pool[i].id) >= 0 ? 0.15 : 1);
+      r -= evtWeight(pool[i]);
       if (r <= 0) { evt = pool[i]; break; }
     }
     recent.push(evt.id);
@@ -555,6 +623,8 @@
 
     // 因果链事件触发一次后清除标记，不会反复刷出
     if (evt.flag) S.flags[evt.flag] = 0;
+    // 劫修报恩后，铁牛加入人脉（魔修峡谷护航）
+    if (evt.id === 'robberReturn') gainTrust('biao', 1);
 
     var choices = evt.choices
       .filter(function (ch) { return !ch.cond || ch.cond(ctx); })
@@ -563,6 +633,7 @@
           t: ch.t, hint: ch.hint,
           run: function () {
             countDecision();
+            if (ch.pers) bumpPersonality(ch.pers, 1);
             if (ch.outs) rollOutcome(ch, ctx);
             else if (ch.run) { var res = ch.run(ctx); if (res) eff(res); }
             closeModal();
@@ -598,7 +669,13 @@
       });
     }
 
-    openModal('⚠️ ' + evt.title, evt.text, choices);
+    // 情报揭示：灵眸 1 级起可见事件内幕（灵眸 3 级或气运 70+ 看得更透）
+    var evtText = evt.text;
+    if (evt.intel && S.arts.shenshi >= 1) {
+      var clearView = S.arts.shenshi >= 3 || S.luck >= 70;
+      evtText += '\n\n👁️ ' + (clearView ? '灵眸观察：' + evt.intel : '灵眸微光一闪，你隐约觉得此事另有玄机……（灵眸 3 级或气运 70 可看清）');
+    }
+    openModal('⚠️ ' + evt.title, evtText, choices);
     log('⚠️ 途中变故：' + evt.title, 'l-evt');
   }
 
@@ -689,6 +766,21 @@
       log('❤️ ' + o.customer + '把你当成了熟客！以后他的单报酬 +30%，小费管够。', 'l-gold');
     }
 
+    // NPC 人脉：招牌人物的单影响关系
+    var npcId = o.npc || (o.special === 'demon' ? 'demon' : null);
+    if (npcId) {
+      if (good) gainTrust(npcId, stars === 5 ? 2 : 1);
+      else if (bad) gainTrust(npcId, -1);
+    }
+    // 温九好感 8+：每 10 次好评赠一枚回春丹
+    if (good && relOf('pill').trust >= 8) {
+      S.flags.pillCounter = (S.flags.pillCounter || 0) + 1;
+      if (S.flags.pillCounter % 10 === 0) {
+        S.flags.pillBuff = (S.flags.pillBuff || 0) + 1;
+        log('💊 温九又寄来一枚回春丹（存 ' + S.flags.pillBuff + ' 枚）。', 'l-gold');
+      }
+    }
+
     // 试炼判定
     if (o.trial && good) {
       S.flags['trial' + o.trial] = 1;
@@ -750,15 +842,52 @@
     save();
     render();
 
-    // 渡劫（Lv.3 起）→ 天谴 → 魔尊结局链，按时序排队
-    if (lvNow > lvBefore && lvNow >= 3) {
-      pendingWrath = S.badStreak >= 3;
-      setTimeout(function () { showTribulation(lvNow); }, 350);
-    } else if (S.badStreak >= 3) {
-      setTimeout(showWrath, 350);
-    } else {
-      checkDemonEnding();
-    }
+    // 失败剧情（25%）→ 渡劫（Lv.3 起）→ 天谴 → 魔尊结局链，按时序排队
+    var proceed = function () {
+      if (lvNow > lvBefore && lvNow >= 3) {
+        pendingWrath = S.badStreak >= 3;
+        showTribulation(lvNow);
+      } else if (S.badStreak >= 3) {
+        showWrath();
+      } else {
+        checkDemonEnding();
+      }
+    };
+    var fs = pickFailureStory(late, bad);
+    if (fs) setTimeout(function () { showFailureStory(fs, proceed); }, 350);
+    else setTimeout(proceed, 350);
+  }
+
+  /* ---------------- 失败剧情（失败也是内容） ---------------- */
+  function pickFailureStory(late, bad) {
+    if (!late && !bad) return null;
+    if (Math.random() > 0.25) return null;
+    var pool = DATA.FAILURES.filter(function (f) {
+      return (f.when === 'late' && late) || (f.when === 'bad' && bad);
+    });
+    if (!pool.length) return null;
+    var total = pool.reduce(function (a, f) { return a + f.w; }, 0);
+    var r = Math.random() * total;
+    for (var i = 0; i < pool.length; i++) { r -= pool[i].w; if (r <= 0) return pool[i]; }
+    return pool[pool.length - 1];
+  }
+  function showFailureStory(f, next) {
+    var rawChoices = f.choices || [{ t: '擦擦餐箱，继续赶路', res: f.res, set: f.set }];
+    var choices = rawChoices.map(function (ch) {
+      return {
+        t: ch.t, hint: ch.hint,
+        run: function () {
+          if (ch.pers) bumpPersonality(ch.pers, 1);
+          if (ch.set) Object.keys(ch.set).forEach(function (k) { S.flags[k] = ch.set[k]; });
+          if (ch.res) eff(ch.res);
+          closeModal();
+          save();
+          render();
+          next();
+        },
+      };
+    });
+    openModal('📖 ' + f.title, f.text, choices);
   }
 
   /* ---------------- 渡劫仪式 ---------------- */
@@ -1421,6 +1550,23 @@
 
     var rg = regulars();
     var rgKeys = Object.keys(rg);
+    html += '<div class="sec-title">人脉</div>';
+    var metAny = false;
+    DATA.NPCS.forEach(function (npc) {
+      var rel = S.relationships[npc.id];
+      if (!rel || rel.trust <= 0) return;
+      metAny = true;
+      var lv = npcLevel(npc, rel.trust);
+      var nextT = npc.tiers[lv];
+      html += '<div class="ach done"><div class="a-ico">' + npc.ico + '</div>' +
+        '<div><div class="a-name">' + npc.name + ' · ' + npc.title + '</div>' +
+        '<div class="a-desc">好感 ' + rel.trust + (nextT ? '/' + nextT : ' · 至交') +
+        (lv > 0 ? ' · ' + npc.perks[lv - 1] : ' · 继续送他的单，会有故事') + '</div></div></div>';
+    });
+    if (!metAny) {
+      html += '<div class="muted small">尚未结识招牌人物。多送内门、魔域的单，善待途中遇到的每一个人。</div>';
+    }
+
     html += '<div class="sec-title">熟客（' + regularCount() + ' 位）</div>';
     if (!rgKeys.length) {
       html += '<div class="muted small">给同一位客人送出 3 次好评，他就会成为你的熟客。熟客单报酬 +30%，必给小费。</div>';
@@ -1470,8 +1616,8 @@
       '<div class="sec-title">危险区</div>' +
       '<div class="row-btns"><button class="btn danger" id="btnReset">🗑️ 删除存档重新开始</button></div>' +
       '<div class="sec-title">关于</div>' +
-      '<div class="muted small">《我在修仙界送外卖》v2.2 · 纯文字单机小游戏 · 无外链资源 · 无声音<br>' +
-      '题材：修仙 × 外卖 · 玩法：择路配送 + 神通操作 + 随机事件 + 因果链 + 门派悬赏 + 经营养成 + 轮回天赋 + 多结局</div>';
+      '<div class="muted small">《我在修仙界送外卖》v2.3 · 纯文字单机小游戏 · 无外链资源 · 无声音<br>' +
+      '题材：修仙 × 外卖 · 玩法：择路配送 + 神通操作 + 情报事件 + 人脉经营 + 因果链 + 轮回天赋 + 多结局</div>';
   }
 
   function render() {
@@ -1499,7 +1645,7 @@
       if (!modalOpen) {
         var d = delivery;
         if (!d.safeMode) {
-          d.integrity = clamp(d.integrity - 0.22 * dt * (1 - 0.25 * S.box.warm), 0, 100);
+          d.integrity = clamp(d.integrity - 0.22 * dt * (1 - 0.25 * S.box.warm) * (d.pill ? 0.5 : 1), 0, 100);
         }
         // 御风诀生效中：进度按 ×1.8 推进
         if (now < d.yufengUntil) d.start -= dt * 0.8 * 1000;
