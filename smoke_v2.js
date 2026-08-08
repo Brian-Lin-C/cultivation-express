@@ -178,6 +178,15 @@ events.forEach(e => e.choices.forEach(c => {
   if (c.pers) ok(PERS_KEYS.includes(c.pers), `${e.id} 选择「${c.t}」pers 非法: ${c.pers}`);
 }));
 
+// 4f) v2.4.1：新手引导
+ok(Array.isArray(DATA.GUIDES) && DATA.GUIDES.length === 5, 'GUIDES 应为 5 步');
+const guideIds = DATA.GUIDES.map(g => g.id);
+ok(new Set(guideIds).size === guideIds.length, 'GUIDES id 重复');
+DATA.GUIDES.forEach((g, i) => {
+  ok(g.id && g.name && g.desc && g.hint && g.reward, `GUIDES[${i}] 字段缺失`);
+  ok(g.reward.stones > 0 || g.reward.merit > 0, `GUIDES[${g.id}] 无奖励`);
+});
+
 // 5) 因果链 flag 有产出方（set 在前置事件中）与触发方（cond 引用）
 const src = dataSrc;
 ['sparedRobber', 'fedCrane', 'offendedDemon', 'metOldman'].forEach(flag => {
@@ -191,6 +200,7 @@ ok(new Set(achIds).size === achIds.length, '成就 id 重复');
 ok(achIds.includes('trialpass'), '缺少 trialpass 成就');
 ok(achIds.includes('quest10') && achIds.includes('heat5'), '缺少 v2.1 成就');
 ok(achIds.includes('build1'), '缺少 build1（自成一派）成就');
+ok(achIds.includes('guide'), '缺少 guide（初出茅庐）成就');
 
 // 7) 基础表
 ok((DATA.AREAS || []).length === 5, 'AREAS 应为 5');
@@ -209,7 +219,8 @@ const gameSrc = fs.readFileSync(path.join(__dirname, 'js', 'game.js'), 'utf8');
 ['rollOutcome', 'dodgeChance', 'makeTrialOrder', 'promptName', 'pushHistory', 'renderBanner', 'pendingGate', 'rawLevel',
  'renderBuffs', 'questProgress', 'ensureQuests', 'recentEvents', 'questHtml',
  'beginDelivery', 'castSkill', 'renderSkills', 'currentWeather', 'routeStats', 'computeBuild', 'bumpPersonality', 'countDecision', 'skillCost', 'skillCd', 'hasBuild',
- 'gainTrust', 'relOf', 'npcLevel', 'pickFailureStory', 'showFailureStory', 'persFactor'].forEach(fn => {
+ 'gainTrust', 'relOf', 'npcLevel', 'pickFailureStory', 'showFailureStory', 'persFactor',
+ 'guideAdvance', 'guideHtml', 'showWelcome', 'showHelp'].forEach(fn => {
   if (!gameSrc.includes(fn)) { console.log('GAME_MISSING: ' + fn); process.exit(1); }
 });
 try {

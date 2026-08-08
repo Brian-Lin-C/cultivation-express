@@ -857,6 +857,15 @@ const DATA = {
     { id: 'bond',   name: '前世旧识', max: 1, costs: [3],       desc: '轮回后熟客好感全部保留' },
   ],
 
+  /* ---------- 新手引导（v2.4.1） ---------- */
+  GUIDES: [
+    { id: 'accept',  name: '第一单生意', desc: '在「接单」页挑一张订单符，择路出发。', hint: '看清报酬/时限/预计耗时再接；预计耗时标红 = 大概率超时', reward: { stones: 20 } },
+    { id: 'deliver', name: '送达即修行', desc: '完成一次配送，无论几星。', hint: '途中变故的抉择影响餐品完整度与耗时，完整度决定星级', reward: { stones: 30, merit: 12 } },
+    { id: 'shop',    name: '工欲善其事', desc: '去「店铺」页逛一圈。', hint: '坐骑提速、外卖箱保餐——灵石要花在刀刃上', reward: { merit: 12 } },
+    { id: 'art',     name: '初窥门径',   desc: '在「修行」页参悟任意一门功法。', hint: '功法消耗功德；任意两门修到 2 层，可悟出专属流派神通', reward: { stones: 40 } },
+    { id: 'codex',   name: '知己知彼',   desc: '打开「图鉴」页看看自己。', hint: '成就永久 +2% 报酬；史册记着你每一次关键抉择', reward: { stones: 50, merit: 10 } },
+  ],
+
   /* ---------- 成就 ---------- */
   ACHIEVEMENTS: [
     { id: 'first',     ico: '🍱', name: '初入江湖',   desc: '送出第一单' },
@@ -881,6 +890,7 @@ const DATA = {
     { id: 'heat5',     ico: '🔥', name: '手感滚烫',   desc: '达成五星五连击' },
     { id: 'fate1',     ico: '🌟', name: '天命所归',   desc: '触发一次天命订单' },
     { id: 'build1',    ico: '🥋', name: '自成一派',   desc: '悟出你的第一个流派' },
+    { id: 'guide',     ico: '🎓', name: '初出茅庐',   desc: '完成全部新手引导' },
   ],
 
   /* ---------- 结局 ---------- */

@@ -9,6 +9,7 @@
  *       + 行为标签/人脉/流派接口预埋 + 决策密度统计
  * v2.3：情报型事件（灵眸揭示）+ 人格影响事件池 + 失败剧情 + NPC 人脉基础版
  * v2.4：流派被动神通（9 大流派落地）+ 流派播报 + 路线偏好画像
+ * v2.4.1：新手引导五步任务链 + 开局欢迎剧情 + 玩法说明 + 情境提示
  * ========================================================= */
 (function () {
   'use strict';
@@ -205,6 +206,53 @@
     return build || null;
   }
   function countDecision() { S.flags.decisions = (S.flags.decisions || 0) + 1; }
+
+  /* ---------------- 新手引导（v2.4.1） ---------------- */
+  function guideStep() { return S.flags.guideStep || 0; }
+  function guideDone() { return guideStep() >= DATA.GUIDES.length; }
+  function guideAdvance(id) {
+    if (guideDone()) return;
+    var g = DATA.GUIDES[guideStep()];
+    if (!g || g.id !== id) return;
+    S.flags.guideStep = guideStep() + 1;
+    var rw = [];
+    if (g.reward.stones) { S.stones += g.reward.stones; rw.push(g.reward.stones + ' 灵石'); }
+    if (g.reward.merit) { S.merit += g.reward.merit; rw.push(g.reward.merit + ' 功德'); }
+    log('🎓 新手引导「' + g.name + '」完成！奖励 ' + rw.join(' + '), 'l-gold');
+    toast('🎓 ' + g.name + ' · 奖励 ' + rw.join(' + '));
+    pushHistory('🎓 完成新手引导「' + g.name + '」');
+    if (guideDone()) {
+      unlockAch('guide');
+      log('🎓 新手引导全部完成！你已是一名合格的修仙骑手——流派、人脉、轮回……更大的世界等着你。', 'l-gold');
+    }
+  }
+  function guideHtml() {
+    if (guideDone()) return '';
+    var g = DATA.GUIDES[guideStep()];
+    var rw = [];
+    if (g.reward.stones) rw.push(g.reward.stones + ' 灵石');
+    if (g.reward.merit) rw.push(g.reward.merit + ' 功德');
+    return '<div class="order special"><div class="o-head"><span class="o-name">🎓 新手引导 (' + (guideStep() + 1) + '/' + DATA.GUIDES.length + ') · ' + g.name + '</span>' +
+      '<span class="o-area">奖励 ' + rw.join(' + ') + '</span></div>' +
+      '<div class="o-body small">' + g.desc + '<br><span class="muted">💡 ' + g.hint + '</span></div></div>';
+  }
+  function showWelcome() {
+    openModal('🌩️ 黄袍加身',
+      '一道天雷把你劈进了修仙界。回家的日子遥遥无期，饭总得吃——\n好在你还有一门手艺：送外卖。\n\n核心循环一句话：接单 → 择路 → 应对途中变故 → 拿好评 → 赚灵石与功德 → 买坐骑、修功法 → 送更远更危险的单。\n\n跟着顶部「新手引导」五步走，每步都有奖励；玩不明白时，随时可在「设置 → 玩法说明」重温。',
+      [{ t: '开工送单！', run: function () { closeModal(); save(); render(); } }]);
+  }
+  function showHelp() {
+    openModal('📖 玩法说明',
+      '【目标】送单赚灵石、攒功德，提升境界，解锁更远的区域，最终达成结局（还乡/外卖帝国/功德飞升/隐藏结局）。结局后可轮回，保留成就并获得传承。\n\n' +
+      '【接单】每次 3 张订单符任选：看报酬、时限、预计耗时。预计标红说明大概率超时，超时就别想好评了。\n' +
+      '【择路】官道稳、山径快、峡谷险而多金；天机（天象）每 8 小时轮换，会改变各路线数值。\n' +
+      '【变故】途中会触发事件：抉择影响餐品完整度与耗时，完整度决定星级。选项灰字是后果提示；修灵眸可看内幕、可消耗道心绕路。\n' +
+      '【神通】配送中可放技能：御风诀冲刺、镇食诀保餐、遁影诀暗中观察。耗灵力（自动回复）、有冷却。\n' +
+      '【养成】灵石买坐骑/外卖箱/骑手小弟（自动送单、离线也跑）；功德修功法，两门 2 层悟出流派神通。\n' +
+      '【资源】气运影响随机事件好坏；道心是灵眸的燃料；好评/打坐回复道心，差评扣减。三连差评遭天谴⚡。\n' +
+      '【其他】门派悬赏每天换着花样发奖；熟客报酬 +30%；骑手榜上压着燕十三就是榜一。',
+      [{ t: '明白了', run: function () { closeModal(); render(); } }]);
+  }
 
   /* ---------------- NPC 人脉 ---------------- */
   function npcDef(id) { return DATA.NPCS.find(function (n) { return n.id === id; }); }
@@ -525,6 +573,11 @@
     ru[route.id] = (ru[route.id] || 0) + 1;
     S.flags.routeUse = ru;
     countDecision();
+    if (!S.flags.tipFirst) {
+      S.flags.tipFirst = 1;
+      log('💡 第一单上路：顶部进度条走完即送达；途中会跳出变故弹窗，抉择影响餐品完整度与耗时。配送暂停于弹窗期间，放心慢慢选。', 'l-sys');
+    }
+    guideAdvance('accept');
 
     log('📦 接单：给' + order.customer + '送「' + order.food + '」（' + DATA.AREAS[order.area].name + ' · ' + route.name + '，时限 ' + order.limit + 's）', 'l-evt');
     if (safeMode) log('🛡️ 平安符生效：本单餐品零损耗。', 'l-good');
@@ -696,6 +749,10 @@
       var clearView = S.arts.shenshi >= 3 || S.luck >= 70;
       evtText += '\n\n👁️ ' + (clearView ? '灵眸观察：' + evt.intel : '灵眸微光一闪，你隐约觉得此事另有玄机……（灵眸 3 级或气运 70 可看清）');
     }
+    if (!S.flags.tipEvent) {
+      S.flags.tipEvent = 1;
+      evtText = '【第一次遇到变故】你的抉择会影响餐品完整度与耗时，进而决定星级评价；选项下的灰字是后果提示。修炼「灵眸」后还能看破事件内幕。\n\n' + evtText;
+    }
     openModal('⚠️ ' + evt.title, evtText, choices);
     log('⚠️ 途中变故：' + evt.title, 'l-evt');
   }
@@ -858,6 +915,8 @@
     // 区域首送成就
     if (o.area >= 3) unlockAch('area4');
     if (o.area >= 4) unlockAch('area5');
+
+    guideAdvance('deliver');
 
     // 境界提升提示
     var lvBefore = S.flags.lastLevel || 1;
@@ -1081,6 +1140,7 @@
     S.merit -= def.costs[cur];
     S.arts[id]++;
     log('📖 参悟功法「' + def.name + '」' + S.arts[id] + ' 层。', 'l-gold');
+    guideAdvance('art');
     save(); render();
   }
   function buyRider() {
@@ -1217,6 +1277,10 @@
         closeModal();
         save();
         render();
+        if (!S.flags.welcomed) {
+          S.flags.welcomed = 1;
+          setTimeout(showWelcome, 350);
+        }
       } }],
       { input: { placeholder: '输入你的骑手名号（12 字内）', value: '' } });
   }
@@ -1390,6 +1454,7 @@
     var cw = currentWeather();
     html = '<div class="order weather"><div class="o-head"><span class="o-name">🌌 天机：' + cw.ico + ' ' + cw.name + '</span>' +
       '<span class="o-area">8 小时一换</span></div><div class="o-body small">' + cw.desc + '</div></div>' + html;
+    html = guideHtml() + html;
     orders.forEach(function (o) {
       var est = Math.ceil(baseTime(o) / speed());
       var risky = est > o.limit;
@@ -1417,6 +1482,7 @@
 
   function renderShop() {
     var pane = $('#pane-shop');
+    guideAdvance('shop');
     var lv = level();
     var html = '<div class="sec-title">坐骑</div>';
     DATA.MOUNTS.forEach(function (m, i) {
@@ -1544,6 +1610,7 @@
 
   function renderCodex() {
     var pane = $('#pane-codex');
+    guideAdvance('codex');
     var html = '';
 
     // 流派称号（功法组合 + 人格自动生成）
@@ -1657,10 +1724,12 @@
       '<div class="row-btns"><button class="btn" id="btnExport">📤 导出存档</button>' +
       '<button class="btn" id="btnImport">📥 导入存档</button></div>' +
       '<textarea id="saveBox" placeholder="存档码会出现在这里；粘贴存档码后点「导入存档」"></textarea>' +
+      '<div class="sec-title">玩法</div>' +
+      '<div class="row-btns"><button class="btn" id="btnHelp">📖 玩法说明</button></div>' +
       '<div class="sec-title">危险区</div>' +
       '<div class="row-btns"><button class="btn danger" id="btnReset">🗑️ 删除存档重新开始</button></div>' +
       '<div class="sec-title">关于</div>' +
-      '<div class="muted small">《我在修仙界送外卖》v2.4 · 纯文字单机小游戏 · 无外链资源 · 无声音<br>' +
+      '<div class="muted small">《我在修仙界送外卖》v2.4.1 · 纯文字单机小游戏 · 无外链资源 · 无声音<br>' +
       '题材：修仙 × 外卖 · 玩法：择路配送 + 神通操作 + 情报事件 + 人脉经营 + 因果链 + 轮回天赋 + 多结局</div>';
   }
 
@@ -1786,7 +1855,7 @@
 
   /* ---------------- 事件绑定 ---------------- */
   document.addEventListener('click', function (ev) {
-    var t = ev.target.closest('[data-accept],[data-skill],[data-mount],[data-box],[data-art],[data-ending],[data-rider],[data-dispatch],[data-talent],#btnReroll,#btnMeditate,#btnExport,#btnImport,#btnReset,#btnRename,.tab');
+    var t = ev.target.closest('[data-accept],[data-skill],[data-mount],[data-box],[data-art],[data-ending],[data-rider],[data-dispatch],[data-talent],#btnReroll,#btnMeditate,#btnExport,#btnImport,#btnReset,#btnRename,#btnHelp,.tab');
     if (!t) return;
 
     if (t.classList.contains('tab')) {
@@ -1820,6 +1889,9 @@
         S.meditating = !S.meditating;
         log(S.meditating ? '🧘 你盘腿坐下，开始吐纳灵气。' : '🧘 你站起身，拍拍道袍上的灰。', 'l-sys');
         render();
+        break;
+      case 'btnHelp':
+        showHelp();
         break;
       case 'btnRename': {
         var v = ($('#nameBox') && $('#nameBox').value || '').trim();
