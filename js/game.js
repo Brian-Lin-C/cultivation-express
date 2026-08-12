@@ -11,6 +11,8 @@
  * v2.4：流派被动神通（9 大流派落地）+ 流派播报 + 路线偏好画像
  * v2.4.1：新手引导五步任务链 + 开局欢迎剧情 + 玩法说明 + 情境提示
  * v2.4.2：三档难度（清闲/标准/修罗）+ 高境界餐损加压 + 修罗道成就
+ * v2.4.3：修复事件耗时符号反转（仙鹤引路等 7 处省时结果曾重置行程）；
+ *       神速对进行中配送实时生效；buff 倒计时每 tick 刷新
  * ========================================================= */
 (function () {
   'use strict';
@@ -578,6 +580,7 @@
       order: order,
       route: route.id,
       start: Date.now(),
+      speedAtStart: speed(),
       paused: 0,
       pauseStart: 0,
       expect: expect,
@@ -628,7 +631,7 @@
       }
       d.integrity = clamp(d.integrity + di, 0, 100);
     }
-    if (res.dt && d) d.start -= res.dt * 1000;
+    if (res.dt && d) d.expect = Math.max(5, d.expect + res.dt); // 耗时增减=剩余行程增减：省时进度前跳，耗时增速放缓（v2.4.3 修正符号）
     if (res.ds) S.stones = Math.max(0, S.stones + res.ds);
     if (res.dm) S.merit = Math.max(0, S.merit + res.dm);
     if (res.dl) S.luck = clamp(S.luck + res.dl, 0, 100);
@@ -1768,7 +1771,7 @@
       '<div class="sec-title">危险区</div>' +
       '<div class="row-btns"><button class="btn danger" id="btnReset">🗑️ 删除存档重新开始</button></div>' +
       '<div class="sec-title">关于</div>' +
-      '<div class="muted small">《我在修仙界送外卖》v2.4.2 · 纯文字单机小游戏 · 无外链资源 · 无声音<br>' +
+      '<div class="muted small">《我在修仙界送外卖》v2.4.3 · 纯文字单机小游戏 · 无外链资源 · 无声音<br>' +
       '题材：修仙 × 外卖 · 玩法：择路配送 + 神通操作 + 情报事件 + 人脉经营 + 因果链 + 轮回天赋 + 多结局</div>';
   }
 
@@ -1813,6 +1816,9 @@
         }
         // 御风诀生效中：进度按 ×1.8 推进
         if (now < d.yufengUntil) d.start -= dt * 0.8 * 1000;
+        // 神速等实时速度变化：按「当前速度 / 出发时速度」动态加减速（v2.4.3，起步价已含神速则不重复加速）
+        var spdRatio = speed() / (d.speedAtStart || speed());
+        if (spdRatio !== 1) d.start -= dt * (spdRatio - 1) * 1000;
         var prog = elapsed(d) / d.expect;
         if (d.fired < d.events.length && prog >= d.events[d.fired]) {
           d.fired++;
@@ -1825,13 +1831,14 @@
       renderBanner(); // 倒计时常驻实时刷新，弹窗时显示「抉择中」
     }
 
-    // 顶栏资源每秒自动重绘（含骑手入账 + buff 实时倒计时）
+    // buff 倒计时每 tick 实时刷新（200ms）
+    renderBuffs();
+
+    // 顶栏资源每秒自动重绘（含骑手入账）
     statAcc += dt;
     if (statAcc >= 1) {
       statAcc = 0;
       renderStats();
-      renderBuffs();
-      if (delivery) renderBanner();
     }
 
     // 骑手小弟自动配送（弹窗时也不停工）
